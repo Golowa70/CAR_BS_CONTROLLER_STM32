@@ -480,54 +480,57 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, CS_LCD_Pin|STATUS_LED_Pin|BUZZER_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LCD_CS_Pin|STATUS_LED_Pin|BUZZER_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, CS_SI4421_Pin|RST_LCD_Pin|SENS_SUPPLY_OUT_Pin|MAIN_SUPPLY_OUT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, SI4421_CS_Pin|LCD_RST_Pin|SENS_SUPPLY_EN_OUT_Pin|MAIN_SUPPLY_EN_OUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, BLA_LCD_Pin|CS_W25Q32_Pin|FRIDGE_OUT_Pin|PUMP_OUT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LCD_BLA_Pin|LCD_DC_Pin|W25Q32_CS_Pin|FRIDGE_OUT_Pin
+                          |WATER_PUMP_OUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CONVERTER_OUT_GPIO_Port, CONVERTER_OUT_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PRX_SENSOR_IN_Pin BUTTON_ENTER_Pin BUTTON_DOWN_Pin BUTTON_UP_Pin
-                           BUTTON_ESC_Pin */
-  GPIO_InitStruct.Pin = PRX_SENSOR_IN_Pin|BUTTON_ENTER_Pin|BUTTON_DOWN_Pin|BUTTON_UP_Pin
-                          |BUTTON_ESC_Pin;
+  /*Configure GPIO pins : PRX_SENSOR_DIN_Pin BUTTON_ENTER_Pin BUTTON_DOWN_Pin BUTTON_UP_Pin
+                           BUTTON_ESC_Pin IGNITION_DIN_Pin */
+  GPIO_InitStruct.Pin = PRX_SENSOR_DIN_Pin|BUTTON_ENTER_Pin|BUTTON_DOWN_Pin|BUTTON_UP_Pin
+                          |BUTTON_ESC_Pin|IGNITION_DIN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IGNITION_IN_Pin DOOR_SWITCH_IN_Pin */
-  GPIO_InitStruct.Pin = IGNITION_IN_Pin|DOOR_SWITCH_IN_Pin;
+  /*Configure GPIO pins : WKUP_DIN_Pin DOOR_SWITCH_DIN_Pin */
+  GPIO_InitStruct.Pin = WKUP_DIN_Pin|DOOR_SWITCH_DIN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CS_LCD_Pin STATUS_LED_Pin BUZZER_Pin */
-  GPIO_InitStruct.Pin = CS_LCD_Pin|STATUS_LED_Pin|BUZZER_Pin;
+  /*Configure GPIO pins : LCD_CS_Pin STATUS_LED_Pin BUZZER_Pin */
+  GPIO_InitStruct.Pin = LCD_CS_Pin|STATUS_LED_Pin|BUZZER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CS_SI4421_Pin RST_LCD_Pin SENS_SUPPLY_OUT_Pin MAIN_SUPPLY_OUT_Pin */
-  GPIO_InitStruct.Pin = CS_SI4421_Pin|RST_LCD_Pin|SENS_SUPPLY_OUT_Pin|MAIN_SUPPLY_OUT_Pin;
+  /*Configure GPIO pins : SI4421_CS_Pin LCD_RST_Pin SENS_SUPPLY_EN_OUT_Pin MAIN_SUPPLY_EN_OUT_Pin */
+  GPIO_InitStruct.Pin = SI4421_CS_Pin|LCD_RST_Pin|SENS_SUPPLY_EN_OUT_Pin|MAIN_SUPPLY_EN_OUT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BLA_LCD_Pin CS_W25Q32_Pin FRIDGE_OUT_Pin PUMP_OUT_Pin */
-  GPIO_InitStruct.Pin = BLA_LCD_Pin|CS_W25Q32_Pin|FRIDGE_OUT_Pin|PUMP_OUT_Pin;
+  /*Configure GPIO pins : LCD_BLA_Pin LCD_DC_Pin W25Q32_CS_Pin FRIDGE_OUT_Pin
+                           WATER_PUMP_OUT_Pin */
+  GPIO_InitStruct.Pin = LCD_BLA_Pin|LCD_DC_Pin|W25Q32_CS_Pin|FRIDGE_OUT_Pin
+                          |WATER_PUMP_OUT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IRQ_SI4421_Pin W_WATER_LEVEL_IN_Pin CS_EXP_MODULE_Pin */
-  GPIO_InitStruct.Pin = IRQ_SI4421_Pin|W_WATER_LEVEL_IN_Pin|CS_EXP_MODULE_Pin;
+  /*Configure GPIO pins : SI4421_IRQ_Pin EXP_MODULE_CS_Pin */
+  GPIO_InitStruct.Pin = SI4421_IRQ_Pin|EXP_MODULE_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
