@@ -851,7 +851,7 @@ void fnPrintMenuSetpointsItemVal(uint8_t num_item, uint8_t num_line){
 		break;
 
 	case 10:
-	  	snprintf(buffer,sizeof(buffer), "%ds", SetpointsUnion.SetpointsArray[num_item]);
+	  	snprintf(buffer,sizeof(buffer), "%dm", SetpointsUnion.SetpointsArray[num_item]);
 	      break;
 
 	case 11:

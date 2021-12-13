@@ -3075,12 +3075,12 @@ void fnPrintMenuSetpointsItemVal(uint8_t num_item, uint8_t num_line){
  80017e6:	e0ca      	b.n	800197e <fnPrintMenuSetpointsItemVal+0x40e>
 
 	case 10:
-	  	snprintf(buffer,sizeof(buffer), "%ds", SetpointsUnion.SetpointsArray[num_item]);
+	  	snprintf(buffer,sizeof(buffer), "%dm", SetpointsUnion.SetpointsArray[num_item]);
  80017e8:	79fb      	ldrb	r3, [r7, #7]
  80017ea:	4a35      	ldr	r2, [pc, #212]	; (80018c0 <fnPrintMenuSetpointsItemVal+0x350>)
  80017ec:	5cd3      	ldrb	r3, [r2, r3]
  80017ee:	f107 000c 	add.w	r0, r7, #12
- 80017f2:	4a34      	ldr	r2, [pc, #208]	; (80018c4 <fnPrintMenuSetpointsItemVal+0x354>)
+ 80017f2:	4a3a      	ldr	r2, [pc, #232]	; (80018dc <fnPrintMenuSetpointsItemVal+0x36c>)
  80017f4:	210a      	movs	r1, #10
  80017f6:	f001 fa65 	bl	8002cc4 <mini_snprintf>
 	      break;
