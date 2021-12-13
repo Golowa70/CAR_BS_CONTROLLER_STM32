@@ -80,9 +80,13 @@ void Error_Handler(void);
 #define AUTO_MODE              1
 #define ON_MODE                2
 
+//resistive sensor
+#define MIN_RESISTANCE          10
+#define MAX_RESISTANCE          240
+
 //MENU
-#define MENU_SETPOINTS_NUM_ITEMS        30    // кол-во пунктов меню настроек
-#define MENU_PARAM_VIEW_NUM_ITEMS       20    // кол-во пунктов меню просмотра параметров
+#define MENU_SETPOINTS_NUM_ITEMS        25    // кол-во пунктов меню настроек
+#define MENU_PARAM_VIEW_NUM_ITEMS       15    // кол-во пунктов меню просмотра параметров
 
 #define LCD_LINE_SPACER                 4  // промежуток между строками
 #define LCD_FONT_HIGHT                  8   // высота шрифта

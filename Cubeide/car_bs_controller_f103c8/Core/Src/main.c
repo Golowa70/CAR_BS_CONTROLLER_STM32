@@ -14,9 +14,10 @@
 /* USER CODE BEGIN Includes */
 #include "u8g2.h"
 #include "w25qxx.h"
-#include "stdio.h"
+//#include "stdio.h"
 #include "stdbool.h"
 #include "button.h"
+#include "mini-printf.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,13 +48,31 @@ u8g2_t u8g2;
 
 typedef struct SetpointsStruct { // структура для уставок
 
-  uint8_t pump_off_delay;
-  uint8_t pump_out_mode;  		// Режим(авто, вкл, выкл).
-  uint8_t converter_U_off;    // дробное со смещённой вправо точкой 12.7в = 127,  13.2в =132 и т.д.
-  uint8_t converter_T_U_off;  // задержка отключения по низкому напряжению U_off
-  uint8_t converter_U_on;     // напряжение включения (порог)
-  uint8_t logo_selection;
-
+  uint8_t pump_T_off;
+  uint8_t pump_out_mode;  		// Режим(выкл, авто, вкл).
+  uint8_t conv_U_off;    		// дробное со смещённой вправо точкой 12.7в = 127,  13.2в =132 и т.д.
+  uint8_t conv_T_U_off;  		// задержка отключения по низкому напряжению U_off
+  uint8_t conv_U_on;     		// напряжение включения (порог)
+  uint8_t conv_T_IGN_off;
+  uint8_t conv_out_mode;
+  uint8_t fridge_U_off;
+  uint8_t fridge_T_U_off;
+  uint8_t fridge_U_on;
+  uint8_t fridge_T_IGN_off;
+  uint8_t fridge_Temp_on;
+  uint8_t fridge_Temp_off;
+  uint8_t fridge_out_mode;
+  uint8_t water_sens_min;
+  uint8_t water_sens_max;
+  uint8_t water_sens_correction;
+  uint8_t water_tank_capacity;
+  uint8_t shutdown_delay;
+  uint8_t U_correction;
+  uint8_t brightness;
+  uint8_t logo;
+  uint8_t inside_sensor_ID;
+  uint8_t outside_sensor_ID;
+  uint8_t fridge_sensor_ID;
 
 }default_setpoints_data;
 
@@ -63,22 +82,21 @@ union {
   struct SetpointsStruct setpoints_data;
   uint8_t SetpointsArray[MENU_SETPOINTS_NUM_ITEMS];
 
-}SetpointsUnion; // 5 byte
+}SetpointsUnion; //
 
 //********** end setpoints variables ******************************************************************
 
 //*********** Main data *******************************************************************************
 struct MyData
 {
-  float battery_voltage;          // напряжени бортсети ( например 124 это 12.4в)
   float outside_temperature;      //  наружная температура
   float inside_temperature;       // температура внутри
   float fridge_temperature;        // температура третьего датчика(пока не используется)
-  float sensors_supply_voltage;   // напряжение питания датчиков 5в
   uint16_t res_sensor_resistance;    // сопротивление резистивного датчика
-
-  uint8_t water_level_percent;    // уровень воды в процентах
+  uint8_t battery_voltage;          // напряжени бортсети ( например 124 это 12.4в)
+  uint8_t sensors_supply_voltage;   // напряжение питания датчиков 5в
   uint8_t water_level_liter;      // уровень воды в литрах
+  uint8_t error_code;
 
   bool door_switch_state;         // состояние концевика задней двери
   bool proximity_sensor_state;    // состояние датчика приближения
@@ -88,9 +106,6 @@ struct MyData
   bool pump_output_state;         //состояние выхода насоса
   bool sensors_supply_output_state; // состояние выхода управления питанием сенсоров 5в
   bool main_supply_output_state;  // состояние выхода управления общим питанием 7.5в
-  bool wdt_reset_output_state;    //состояние выхода сброса внешнего WDT
-  bool screen_sleep_mode;         // флаг спящего режима экрана Nextion
-  bool low_washer_water_level;    // низкий уровень воды в бачке омывателя
   bool flag_system_started;
 
 } main_data;
@@ -112,13 +127,8 @@ struct MyData
   const char p10[]  = "Conv relay";
   const char p11[]  = "Fridge relay";
   const char p12[]  = "Pump relay";
-  const char p13[]  = "1Wire err";
-  const char p14[]  = "Water sens err";
-  const char p15[]  = "Sens supply err";
-  const char p16[]  = "Spare";
-  const char p17[]  = "Spare";
-  const char p18[]  = "Spare";
-  const char p19[]  = "Spare";
+  const char p13[]  = "Error code";
+  const char p14[]  = "Spare";
 
 
 /*Массив ссылок на имена пунктов  меню просмотра параметров, обращение к названию пунктов по их номеру*/
@@ -126,8 +136,7 @@ const char* const parameters_names[]  =
 {
   p0,p1,p2,p3,p4,
   p5,p6,p7,p8,p9,
-  p10,p11,p12,p13,p14,
-  p15,p16,p17,p18,p19,
+  p10,p11,p12,p13,p14
 };
 
 /* массивы строк с именами пунктов меню настроек */
@@ -149,18 +158,13 @@ const char* const parameters_names[]  =
 	const char i15[] = "Water sens max";
 	const char i16[] = "Water sens corr";
 	const char i17[] = "Water tank cap";
-	const char i18[] = "Buzzer out mode";
-	const char i19[] = "Shutdown delay";
-	const char i20[] = "U correction";
-	const char i21[] = "Brightness";
-	const char i22[] = "Logo";
-	const char i23[] = "Inside sid";
-	const char i24[] = "Outside sid";
-	const char i25[] = "Fridge sid";
-	const char i26[] = "Debug print";
-	const char i27[] = "Parametr 28";
-	const char i28[] = "Parametr 29";
-	const char i29[] = "Parametr 30";
+	const char i18[] = "Shutdown delay";
+	const char i19[] = "U correction";
+	const char i20[] = "Brightness";
+	const char i21[] = "Logo";
+	const char i22[] = "Inside sid";
+	const char i23[] = "Outside sid";
+	const char i24[] = "Fridge sid";
 
   /*Массив ссылок на имена пунктов  меню настроек, обращение к названию пунктов по их номеру*/
   const char* const setpoints_menu_names[]  =
@@ -169,8 +173,7 @@ const char* const parameters_names[]  =
 	i5, i6, i7, i8, i9,
 	i10, i11, i12, i13, i14,
 	i15, i16, i17, i18, i19,
-	i20, i21, i22, i23, i24,
-	i25, i26, i27, i28, i29
+	i20, i21, i22, i23, i24
   };
 
   //Массив минимальных значений параметров
@@ -203,15 +206,6 @@ const char* const parameters_names[]  =
   uint8_t display_num_lines;
 
   //****** Errors ***************************************************************************
-  struct Alarms
-  {
-    bool eeprom_init;
-    bool sens_supply;
-    bool temp_sensors;
-    bool pj_water_sensor;
-    bool resist_water_sensor;
-    bool common;
-  } present_alarms,old_alarms;
 
  //******** BUTTONS ******************************************************
   enum Buttons{
@@ -370,9 +364,6 @@ int main(void)
 		  time_b = HAL_GetTick();
 	   }
 
-	  //printMenuSetpoints();
-	 // fnPrintMenuParamView();
-	  //fnPrintMainView();
 
 	  fnMenuProcess();
 
@@ -771,58 +762,169 @@ void printMenuSetpoints(void){
 void fnPrintMenuSetpointsItemVal(uint8_t num_item, uint8_t num_line){
 
   //если все параметры одного типа то можно выводить через массив
-  //sprintf(buffer, "%d", SetpointsUnion.SetpointsArray[num_item]);
+  //snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
   //u8g2_DrawStr(&u8g2,98,(num_line*12)-2,buffer);
 
   char buffer[10] = {0,};
   uint8_t float_m, float_n; // переменные для разбития числа на целую и дробную часть
 
-  switch (num_item)
-  {
-  case 0:
-    sprintf(buffer, "%ds", SetpointsUnion.SetpointsArray[num_item]);
-    break;
+	switch (num_item) {
+	case 0:
+		snprintf(buffer, sizeof(buffer), "%ds",
+				SetpointsUnion.SetpointsArray[num_item]);
+		break;
 
-  case 1:
+	case 1:
 
-    switch (SetpointsUnion.SetpointsArray[num_item])
-    {
-    case OFF_MODE:
-      sprintf(buffer, "off");
-      break;
-    case ON_MODE:
-      sprintf(buffer, "on");
-      break;
-    case AUTO_MODE:
-      sprintf(buffer, "auto");
-      break;
-    default:
-      break;
-    }
+		switch (SetpointsUnion.SetpointsArray[num_item]) {
+		case OFF_MODE:
+			snprintf(buffer, sizeof(buffer), "off");
+			break;
+		case ON_MODE:
+			snprintf(buffer, sizeof(buffer), "on");
+			break;
+		case AUTO_MODE:
+			snprintf(buffer, sizeof(buffer), "auto");
+			break;
+		default:
+			break;
+		}
 
-    break;
+		break;
 
-  case 2:
-    float_m = SetpointsUnion.SetpointsArray[num_item];
-    float_n = float_m%10;
-    float_m = float_m/10;
-    sprintf(buffer,"%d.%d",float_m, float_n);
-    break;
+	case 2:
+		float_m = SetpointsUnion.SetpointsArray[num_item];
+		float_n = float_m % 10;
+		float_m = float_m / 10;
+		snprintf(buffer, sizeof(buffer), "%d.%d", float_m, float_n);
+		break;
 
-  case 3:
-    sprintf(buffer, "%ds", SetpointsUnion.SetpointsArray[num_item]);
-    break;
+	case 3:
+		snprintf(buffer, sizeof(buffer), "%ds",
+				SetpointsUnion.SetpointsArray[num_item]);
+		break;
 
-  case 4:
-    float_m = SetpointsUnion.SetpointsArray[num_item];
-    float_n = float_m%10;
-    float_m = float_m/10;
-    sprintf(buffer,"%d.%d",float_m, float_n);
-    break;
+	case 4:
+		float_m = SetpointsUnion.SetpointsArray[num_item];
+		float_n = float_m % 10;
+		float_m = float_m / 10;
+		snprintf(buffer, sizeof(buffer), "%d.%d", float_m, float_n);
+		break;
 
-  default:
-     break;
-   }
+	case 5:
+		snprintf(buffer, sizeof(buffer), "%dm",
+				SetpointsUnion.SetpointsArray[num_item]);
+		break;
+
+	case 6:
+		switch (SetpointsUnion.SetpointsArray[num_item]) {
+		case OFF_MODE:
+			snprintf(buffer, sizeof(buffer), "off");
+			break;
+		case ON_MODE:
+			snprintf(buffer, sizeof(buffer), "on");
+			break;
+		case AUTO_MODE:
+			snprintf(buffer, sizeof(buffer), "auto");
+			break;
+		default:
+			break;
+		}
+		break;
+
+	case 7:
+		float_m = SetpointsUnion.SetpointsArray[num_item];
+		float_n = float_m % 10;
+		float_m = float_m / 10;
+		snprintf(buffer, sizeof(buffer), "%d.%d", float_m, float_n);
+		break;
+
+	case 8:
+	  	snprintf(buffer,sizeof(buffer), "%ds", SetpointsUnion.SetpointsArray[num_item]);
+	  	break;
+
+	case 9:
+		float_m = SetpointsUnion.SetpointsArray[num_item];
+		float_n = float_m % 10;
+		float_m = float_m / 10;
+		snprintf(buffer, sizeof(buffer), "%d.%d", float_m, float_n);
+		break;
+
+	case 10:
+	  	snprintf(buffer,sizeof(buffer), "%ds", SetpointsUnion.SetpointsArray[num_item]);
+	      break;
+
+	case 11:
+	  	snprintf(buffer,sizeof(buffer), "%dC", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 12:
+	  	snprintf(buffer,sizeof(buffer), "%dC", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 13:
+		switch (SetpointsUnion.SetpointsArray[num_item]) {
+		case OFF_MODE:
+			snprintf(buffer, sizeof(buffer), "off");
+			break;
+		case ON_MODE:
+			snprintf(buffer, sizeof(buffer), "on");
+			break;
+		case AUTO_MODE:
+			snprintf(buffer, sizeof(buffer), "auto");
+			break;
+		default:
+			break;
+		}
+	    break;
+
+	case 14:
+		snprintf(buffer,sizeof(buffer), "%dR", SetpointsUnion.SetpointsArray[num_item]);
+		break;
+
+	case 15:
+	  	snprintf(buffer,sizeof(buffer), "%dR", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 16:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 17:
+	  	snprintf(buffer,sizeof(buffer), "%dL", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 18:
+	  	snprintf(buffer,sizeof(buffer), "%dh", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 19:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 20:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 21:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 22:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 23:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	case 24:
+	  	snprintf(buffer,sizeof(buffer), "%d", SetpointsUnion.SetpointsArray[num_item]);
+	    break;
+
+	default:
+		break;
+	}
 
    u8g2_DrawStr(&u8g2,102,(num_line*12),buffer);
 
@@ -842,96 +944,75 @@ void fnPrintMenuParamItemVal(uint8_t num_item, uint8_t num_line){
     float_m = (int)(main_data.battery_voltage * 10);
     float_n = float_m%10;
     float_m = float_m/10;
-    sprintf(buffer,"%d.%dv",float_m, float_n);
+    snprintf(buffer,sizeof(buffer),"%d.%dv",float_m, float_n);
     break;
 
   case 1:
-    sprintf(buffer,"%uL", main_data.water_level_liter);
+    snprintf(buffer,sizeof(buffer),"%uL", main_data.water_level_liter);
     break;
 
   case 2:
     float_m = (int)(main_data.outside_temperature * 10);
     float_n = float_m%10;
     float_m = float_m/10;
-    sprintf(buffer,"%d.%dC",float_m, float_n);
+    snprintf(buffer,sizeof(buffer),"%d.%dC",float_m, float_n);
     break;
 
   case 3:
     float_m = (int)(main_data.inside_temperature * 10);
     float_n = float_m%10;
     float_m = float_m/10;
-    sprintf(buffer,"%d.%dC",float_m, float_n);
+    snprintf(buffer,sizeof(buffer),"%d.%dC",float_m, float_n);
     break;
 
   case 4:
     float_m = (int)(main_data.fridge_temperature * 10);
     float_n = float_m%10;
     float_m = float_m/10;
-    sprintf(buffer,"%d.%dC",float_m, float_n);
+    snprintf(buffer,sizeof(buffer),"%d.%dC",float_m, float_n);
     break;
 
   case 5:
     float_m = (int)(main_data.sensors_supply_voltage * 10);
     float_n = float_m%10;
     float_m = float_m/10;
-    //sprintf(buffer,"%d.%dv",float_m, float_n);
+    snprintf(buffer,sizeof(buffer),"%d.%dv",float_m, float_n);
     break;
 
   case 6:
-    //if(main_data.res_sensor_resistance <= MAX_RESISTANCE)sprintf(buffer,"%d",main_data.res_sensor_resistance);
-   // else sprintf(buffer,"xxx");
+    if(main_data.res_sensor_resistance <= MAX_RESISTANCE)snprintf(buffer,sizeof(buffer),"%d",main_data.res_sensor_resistance);
+    else snprintf(buffer,sizeof(buffer),"xxx");
     break;
 
   case 7:
-    //sprintf(buffer,"%1u", main_data.door_switch_state);
+    snprintf(buffer,sizeof(buffer),"%1u", main_data.door_switch_state);
 
     break;
 
   case 8:
-    //sprintf(buffer,"%1u", main_data.proximity_sensor_state);
+    snprintf(buffer,sizeof(buffer),"%1u", main_data.proximity_sensor_state);
     break;
   case 9:
-    //sprintf(buffer,"%1u", main_data.ignition_switch_state);
+    snprintf(buffer,sizeof(buffer),"%1u", main_data.ignition_switch_state);
     break;
 
   case 10:
-    //sprintf(buffer,"%1u", main_data.low_washer_water_level);
+	snprintf(buffer,sizeof(buffer),"%1u", main_data.converter_output_state);
     break;
 
   case 11:
-    //sprintf(buffer,"%1u", main_data.converter_output_state);
+    snprintf(buffer,sizeof(buffer),"%1u", main_data.fridge_output_state);
     break;
 
   case 12:
-    //sprintf(buffer,"%1u", main_data.fridge_output_state);
+    snprintf(buffer,sizeof(buffer),"%1u", main_data.pump_output_state);
     break;
 
   case 13:
-    //sprintf(buffer,"%1u", main_data.pump_output_state);
+	snprintf(buffer,sizeof(buffer),"%1u", main_data.error_code);
     break;
 
   case 14:
-
-    break;
-
-  case 15:
-    //sprintf(buffer,"%1u", present_alarms.temp_sensors);
-    break;
-
-  case 16:
-
-      break;
-
-
-
-  case 17:
-   // sprintf(buffer,"%1u", present_alarms.sens_supply);
-    break;
-
-  case 18:
-
-    break;
-  case 19:
 
     break;
 
@@ -984,13 +1065,13 @@ void fnPrintMainView(void){
   float_m = (uint8_t)(main_data.battery_voltage * 10);
   float_n = float_m%10;
   float_m = float_m/10;
-  sprintf(buffer,"%d.%dv",float_m, float_n);
+  snprintf(buffer,sizeof(buffer),"%d.%dv",float_m, float_n);
   u8g2_DrawStr(&u8g2,102, 8, buffer);
 
-  sprintf(buffer,"> %dC", (int)main_data.inside_temperature);
+  snprintf(buffer,sizeof(buffer),"> %dC", (int)main_data.inside_temperature);
   u8g2_DrawStr(&u8g2, 98, 18, buffer);
 
-  sprintf(buffer,"< %dC", (int)main_data.outside_temperature);
+  snprintf(buffer,sizeof(buffer),"< %dC", (int)main_data.outside_temperature);
   u8g2_DrawStr(&u8g2, 98, 28, buffer);
 
   u8g2_SetDrawColor(&u8g2,1);
@@ -1031,7 +1112,7 @@ void fnPrintMainView(void){
 	u8g2_SetDrawColor(&u8g2,1);
   }
 
-  if(present_alarms.common){
+  if(main_data.error_code){
 	u8g2_DrawBox(&u8g2,1,1,16,8);
 	u8g2_SetDrawColor(&u8g2,0);
 	u8g2_DrawStr(&u8g2,2, 8, "ERR");
@@ -1055,7 +1136,7 @@ void fnPrintMainView(void){
     u8g2_SetDrawColor(&u8g2,1);
   }
 
-  sprintf(buffer,"%d L",main_data.water_level_liter);
+  snprintf(buffer,sizeof(buffer),"%d L",main_data.water_level_liter);
   u8g2_SetFont(&u8g2, u8g2_font_ncenB18_tr);	//
   u8g2_DrawStr(&u8g2,55, 55, buffer);
 
@@ -1170,7 +1251,7 @@ void fnMenuProcess(void){
 
       case MENU_LOGO_VIEW:
 
-        switch (SetpointsUnion.setpoints_data.logo_selection)
+        switch (SetpointsUnion.setpoints_data.logo)
         {
         case 0:
           u8g2_ClearBuffer(&u8g2);

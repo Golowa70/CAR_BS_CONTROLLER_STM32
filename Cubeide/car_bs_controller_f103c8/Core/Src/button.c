@@ -41,10 +41,10 @@
 #define BUTTON_DEBOUNCE_TICK (50 / BUTTON_SCAN_TICK)
 
 /** if released for BUTTON_CLICKED_TICK, capture click count and call the callback if defned */
-#define BUTTON_CLICKED_TICK (250 / BUTTON_SCAN_TICK)
+#define BUTTON_CLICKED_TICK (150 / BUTTON_SCAN_TICK)  //250
 
 /** if repressed within BUTTON_REPRESSED_TICK, increment count */
-#define BUTTON_REPRESSED_TICK (150 / BUTTON_SCAN_TICK)
+#define BUTTON_REPRESSED_TICK (70 / BUTTON_SCAN_TICK)		//150
 
 /** if pressed for BUTTON_LONG_PRESSED_TICK, set count to 255 to indicate long pressed */
 #define BUTTON_LONG_PRESSED_TICK (1000 / BUTTON_SCAN_TICK)
