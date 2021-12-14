@@ -1140,8 +1140,8 @@ void fnPrintMainView(void){
   u8g2_SetFont(&u8g2, u8g2_font_ncenB18_tr);	//
   u8g2_DrawStr(&u8g2,55, 55, buffer);
 
-  W25qxx_ReadBytes(imageBuff, (FLASH_SECTOR_SIZE*2), 1024);
-  u8g2_DrawXBM(&u8g2,5, 12, 64, 55, imageBuff);
+  W25qxx_ReadBytes(imageBuff, (IMAGE_WATER_LEVEL), 1024);
+  u8g2_DrawXBM(&u8g2,5, 12, 50, 50, imageBuff);
 
   u8g2_SendBuffer(&u8g2);
 }

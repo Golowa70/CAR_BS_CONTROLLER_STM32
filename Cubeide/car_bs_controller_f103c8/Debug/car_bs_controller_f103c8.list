@@ -4247,17 +4247,17 @@ void fnPrintMainView(void){
  8002044:	480d      	ldr	r0, [pc, #52]	; (800207c <fnPrintMainView+0x2f8>)
  8002046:	f001 fee9 	bl	8003e1c <u8g2_DrawStr>
 
-  W25qxx_ReadBytes(imageBuff, (FLASH_SECTOR_SIZE*2), 1024);
+  W25qxx_ReadBytes(imageBuff, (IMAGE_WATER_LEVEL), 1024);
  800204a:	f44f 6280 	mov.w	r2, #1024	; 0x400
- 800204e:	f44f 5100 	mov.w	r1, #8192	; 0x2000
+ 800204e:	f44f 41a0 	mov.w	r1, #20480	; 0x5000
  8002052:	4819      	ldr	r0, [pc, #100]	; (80020b8 <fnPrintMainView+0x334>)
  8002054:	f003 f848 	bl	80050e8 <W25qxx_ReadBytes>
-  u8g2_DrawXBM(&u8g2,5, 12, 64, 55, imageBuff);
+  u8g2_DrawXBM(&u8g2,5, 12, 50, 50, imageBuff);
  8002058:	4b17      	ldr	r3, [pc, #92]	; (80020b8 <fnPrintMainView+0x334>)
  800205a:	9301      	str	r3, [sp, #4]
- 800205c:	2337      	movs	r3, #55	; 0x37
+ 800205c:	2332      	movs	r3, #50	; 0x32
  800205e:	9300      	str	r3, [sp, #0]
- 8002060:	2340      	movs	r3, #64	; 0x40
+ 8002060:	2332      	movs	r3, #50	; 0x32
  8002062:	220c      	movs	r2, #12
  8002064:	2105      	movs	r1, #5
  8002066:	4805      	ldr	r0, [pc, #20]	; (800207c <fnPrintMainView+0x2f8>)
