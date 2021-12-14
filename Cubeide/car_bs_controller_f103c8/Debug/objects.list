@@ -1,3 +1,4 @@
+"./Core/Src/OneWire.o"
 "./Core/Src/button.o"
 "./Core/Src/main.o"
 "./Core/Src/mini-printf.o"
@@ -111,7 +112,6 @@
 "./Core/Src/w25qxx.o"
 "./Core/Startup/startup_stm32f103c8tx.o"
 "./Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.o"
-"./Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_can.o"
 "./Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.o"
 "./Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.o"
 "./Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_exti.o"

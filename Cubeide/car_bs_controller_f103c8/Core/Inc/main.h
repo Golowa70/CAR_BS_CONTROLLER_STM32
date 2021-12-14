@@ -107,11 +107,14 @@ void Error_Handler(void);
 #define BTN_ENTER_LONG_PRESS    0b01000000
 #define BTN_ESC_LONG_PRESS		0b10000000
 
-#define IMAGE_LOGO_FK			FLASH_SECTOR_SIZE*1		//64x55
-#define IMAGE_LOGO_2			FLASH_SECTOR_SIZE*2		//64x55
-#define IMAGE_LOGO_3			FLASH_SECTOR_SIZE*3		//64x55
-#define IMAGE_LOGO_4			FLASH_SECTOR_SIZE*4		//64x55
-#define IMAGE_WATER_LEVEL		FLASH_SECTOR_SIZE*5		//50x50
+
+#define SETPOINTS_FLASH_SECTOR			10
+#define DS18B20_IDS_FLASH_SECTOR		11
+#define IMAGE_LOGO_FK					FLASH_SECTOR_SIZE*1		//64x55
+#define IMAGE_LOGO_2					FLASH_SECTOR_SIZE*2		//64x55
+#define IMAGE_LOGO_3					FLASH_SECTOR_SIZE*3		//64x55
+#define IMAGE_LOGO_4					FLASH_SECTOR_SIZE*4		//64x55
+#define IMAGE_WATER_LEVEL				FLASH_SECTOR_SIZE*5		//50x50
 
 #define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 

@@ -18,6 +18,7 @@
 #include "stdbool.h"
 #include "button.h"
 #include "mini-printf.h"
+#include "OneWire.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,11 +36,10 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-CAN_HandleTypeDef hcan;
-
 SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 u8g2_t u8g2;
@@ -179,15 +179,21 @@ const char* const parameters_names[]  =
   //Массив минимальных значений параметров
   uint8_t param_range_min[MENU_SETPOINTS_NUM_ITEMS]  =
   {
-    3,0,90,1,100,
-
+    3,0,80,1,100,
+	1,0,80,1,100,
+	1,5,1,0,10,
+	20,0,1,1,0,
+	10,0,0,0,0
   };
 
   //Массив максимальных значений параметров
   uint8_t param_range_max[MENU_SETPOINTS_NUM_ITEMS]  =
   {
    20,2,130,240,180,
-
+   240,2,130,240,180,
+   240,40,20,3,100,
+   240,255,100,12,255,
+   100,2,2,2,2
   };
 
   uint8_t menu_current_item = 0; // Переменная указатель на текущий пункт меню
@@ -238,9 +244,9 @@ const char* const parameters_names[]  =
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_CAN_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 //DISPLAY FUNCTION
@@ -273,7 +279,7 @@ uint8_t Button_D_Read(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+extern float Temp[MAXDEVICES_ON_THE_BUS];
 /* USER CODE END 0 */
 
 /**
@@ -304,9 +310,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_CAN_Init();
   MX_USART1_UART_Init();
   MX_SPI1_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
 //FLASH INIT
@@ -351,6 +357,14 @@ int main(void)
 	Button_D.Callback = NULL; //    NULL; /** without callback */
 	Button_Add(&Button_D);
 
+//READ SETPOINTS FROM FLASH W25Q
+	W25qxx_ReadBytes(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR*FLASH_SECTOR_SIZE, MENU_SETPOINTS_NUM_ITEMS);
+
+//ONE WIRE
+	get_ROMid();
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -362,12 +376,16 @@ int main(void)
 	   {
 		  flag_blink = !flag_blink;
 		  time_b = HAL_GetTick();
+		  get_Temperature();
 	   }
 
+	  main_data.inside_temperature = Temp[0];
+	  main_data.outside_temperature = Temp[1];
 
 	  fnMenuProcess();
 
 	  btn_state = fnGetPressKey();// опрос кнопок
+
 
     /* USER CODE END WHILE */
 
@@ -412,43 +430,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief CAN Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_CAN_Init(void)
-{
-
-  /* USER CODE BEGIN CAN_Init 0 */
-
-  /* USER CODE END CAN_Init 0 */
-
-  /* USER CODE BEGIN CAN_Init 1 */
-
-  /* USER CODE END CAN_Init 1 */
-  hcan.Instance = CAN1;
-  hcan.Init.Prescaler = 16;
-  hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
-  hcan.Init.TimeTriggeredMode = DISABLE;
-  hcan.Init.AutoBusOff = DISABLE;
-  hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
-  hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = DISABLE;
-  if (HAL_CAN_Init(&hcan) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN CAN_Init 2 */
-
-  /* USER CODE END CAN_Init 2 */
-
 }
 
 /**
@@ -519,6 +500,39 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_HalfDuplex_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
 
 }
 
@@ -1238,7 +1252,15 @@ void fnMenuProcess(void){
 
         if(btn_state == BTN_ENTER){
           //выход с сохранением в flash
-          //tone(BUZZER,500,200);
+        	W25qxx_EraseSector(SETPOINTS_FLASH_SECTOR);
+        	bool flag_empty = false;
+        	flag_empty = W25qxx_IsEmptySector(SETPOINTS_FLASH_SECTOR, 0,MENU_SETPOINTS_NUM_ITEMS);
+        	if(flag_empty){
+        		W25qxx_WriteSector(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR, 0, MENU_SETPOINTS_NUM_ITEMS);
+        		flag_empty = false;
+        		//tone(BUZZER,500,200);
+        	}
+
           menu_mode = MENU_SETPOINTS;
         }
 
@@ -1262,13 +1284,15 @@ void fnMenuProcess(void){
 
         case 1:
           u8g2_ClearBuffer(&u8g2);
-          //
+          W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_2, 1024);
+          u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
           u8g2_SendBuffer(&u8g2);
           break;
 
         case 2:
           u8g2_ClearBuffer(&u8g2);
-          //
+          W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_3, 1024);
+          u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
           u8g2_SendBuffer(&u8g2);
           break;
 
