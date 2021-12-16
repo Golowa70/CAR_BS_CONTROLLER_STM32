@@ -1,0 +1,10 @@
+TIMERS.c:15:6:ProcessTimers	24	static
+TIMERS.c:32:6:InitTimers	16	static
+TIMERS.c:39:10:GetTimer	16	static
+TIMERS.c:43:6:ResetTimer	16	static
+TIMERS.c:49:6:InitGTimers	16	static
+TIMERS.c:56:11:GetGTimer	16	static
+TIMERS.c:60:6:StopGTimer	16	static
+TIMERS.c:65:6:StartGTimer	16	static
+TIMERS.c:70:6:PauseGTimer	16	static
+TIMERS.c:76:6:ContinueGTimer	16	static

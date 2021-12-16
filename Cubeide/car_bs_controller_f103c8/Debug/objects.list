@@ -1,4 +1,5 @@
 "./Core/Src/OneWire.o"
+"./Core/Src/TIMERS.o"
 "./Core/Src/button.o"
 "./Core/Src/main.o"
 "./Core/Src/mini-printf.o"

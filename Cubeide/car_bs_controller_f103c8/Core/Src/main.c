@@ -16,9 +16,11 @@
 #include "w25qxx.h"
 //#include "stdio.h"
 #include "stdbool.h"
+#include "stdint.h".h"
 #include "button.h"
 #include "mini-printf.h"
 #include "OneWire.h"
+#include "TIMERS.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -238,6 +240,7 @@ const char* const parameters_names[]  =
 	bool flag_blink = false; // флаг для мигания чего либо на экране
 	uint8_t imageBuff[IMAGE_BUFFER_SIZE] = {0,};
 	bool flag_mb_connected = 0;
+	uint32_t sys_timer = 0;
 
 /* USER CODE END PV */
 
@@ -362,7 +365,8 @@ int main(void)
 
 //ONE WIRE
 	get_ROMid();
-
+	InitGTimers();
+	StartGTimer(TIMER_PUMP_OFF);
 
 
   /* USER CODE END 2 */
@@ -385,6 +389,13 @@ int main(void)
 	  fnMenuProcess();
 
 	  btn_state = fnGetPressKey();// опрос кнопок
+
+	  ProcessTimers(&sys_timer);
+
+	  if (GetGTimer(TIMER_PUMP_OFF) >= SetpointsUnion.setpoints_data.pump_T_off*SEC) {
+		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		  StartGTimer(TIMER_PUMP_OFF);
+	  }
 
 
     /* USER CODE END WHILE */
@@ -555,6 +566,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(W25Q_CS_GPIO_Port, W25Q_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -567,8 +581,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(W25Q_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LCD_RESET_Pin LCD_CS_Pin */
-  GPIO_InitStruct.Pin = LCD_RESET_Pin|LCD_CS_Pin;
+  /*Configure GPIO pins : LED_Pin LCD_RESET_Pin LCD_CS_Pin */
+  GPIO_InitStruct.Pin = LED_Pin|LCD_RESET_Pin|LCD_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

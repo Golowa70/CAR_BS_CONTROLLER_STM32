@@ -24,7 +24,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_spi.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
  ../Core/Inc/u8g2.h ../Core/Inc/u8x8.h ../Core/Inc/w25qxx.h \
- ../Core/Inc/button.h ../Core/Inc/mini-printf.h ../Core/Inc/OneWire.h
+ ../Core/Inc/button.h ../Core/Inc/mini-printf.h ../Core/Inc/OneWire.h \
+ ../Core/Inc/TIMERS.h
 
 ../Core/Inc/main.h:
 
@@ -87,3 +88,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/mini-printf.h:
 
 ../Core/Inc/OneWire.h:
+
+../Core/Inc/TIMERS.h:
