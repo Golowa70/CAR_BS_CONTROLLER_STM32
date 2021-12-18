@@ -209,7 +209,7 @@ void Error_Handler(void);
 #define	U_CORR_MAX					255
 
 #define	LIGHT_T_OFF_MIN				0
-#define	LIGHT_T_OFF_MAX				255		//sec
+#define	LIGHT_T_OFF_MAX				60	//sec
 
 #define	LOGO_MIN					0
 #define	LOGO_MAX					2

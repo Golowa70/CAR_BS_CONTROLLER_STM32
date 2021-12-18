@@ -113,7 +113,9 @@ struct MyData
   bool pump_output_state;         	//состояние выхода насоса
   bool sensors_supply_output_state; // состояние выхода управления питанием сенсоров 5в
   bool main_supply_output_state;  	// состояние выхода управления общим питанием 7.5в
+  bool lcd_light_output_state;
   bool flag_system_started;
+  bool flag_lcd_turn_on;
 
 } main_data;
 
@@ -266,6 +268,7 @@ const char* const parameters_names[]  =
   };
 
    static uint16_t btn_state = 0;
+   static uint16_t btn_old_state = 0;
    uint8_t btnStatesArray[MAX_BUTTONS] = {0,};
    Button_Struct_t Button_A;
    Button_Struct_t Button_B;
@@ -340,6 +343,7 @@ void fnMainPowerControl(struct MyData *data, struct SetpointsStruct *setpoints);
 void fnInputsUpdate(void);
 uint8_t fnDebounce(uint8_t sample);
 void fnOutputsUpdate(struct MyData *data);
+void fnDisplayLightControl(struct MyData *data, struct SetpointsStruct *setpoints);
 
 /* USER CODE END PFP */
 
@@ -472,6 +476,7 @@ int main(void)
 	  fnConverterControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnFridgeControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnMainPowerControl(&main_data, &SetpointsUnion.setpoints_data);
+	  fnDisplayLightControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnOutputsUpdate(&main_data);
 
 	  if (GetGTimer(TIMER_TEMP_SENS_UPDATE) >= TEMP_SENS_UPDATE_PERIOD) {
@@ -2003,9 +2008,31 @@ void fnOutputsUpdate(struct MyData *data)
 	HAL_GPIO_WritePin(CONV_OUTPUT_GPIO_Port, CONV_OUTPUT_Pin, data->converter_output_state);
 	HAL_GPIO_WritePin(MAIN_SUPPLY_GPIO_Port, MAIN_SUPPLY_Pin, data->main_supply_output_state);
 	HAL_GPIO_WritePin(SENS_SUPPLY_GPIO_Port, SENS_SUPPLY_Pin, data->sensors_supply_output_state);
+	HAL_GPIO_WritePin(LCD_LED_GPIO_Port, LCD_LED_Pin, data->lcd_light_output_state);
 }
 //*******************************************************************************
 
+// lcd light control
+void fnDisplayLightControl(struct MyData *data, struct SetpointsStruct *setpoints){
+
+	static bool door_old_state = false;
+	static bool state = false;
+
+	if (data->door_switch_state && (door_old_state != data->door_switch_state)){
+		StartGTimer(TIMER_LCD_LIGHT_OFF);
+		state = true;
+	}
+
+	door_old_state = data->door_switch_state;
+
+	if(GetGTimer(TIMER_LCD_LIGHT_OFF) > (setpoints->lcd_light_T_off * SEC)){
+		state = false;
+		StopGTimer(TIMER_LCD_LIGHT_OFF);
+	}
+
+	data->lcd_light_output_state = state;
+}
+//********************************************************************************
 /* USER CODE END 4 */
 
 /**
