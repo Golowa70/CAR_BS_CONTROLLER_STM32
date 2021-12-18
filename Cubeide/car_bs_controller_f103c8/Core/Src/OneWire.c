@@ -23,7 +23,7 @@ volatile uint16_t rc_buffer[5];
 extern UART_HandleTypeDef huart3;
 #define ow_uart huart3
 #define OW_USART USART3
-#define MAXDEVICES_ON_THE_BUS 2
+
 
 /*********************************************************************************************/
 float Temp[MAXDEVICES_ON_THE_BUS];
@@ -269,7 +269,7 @@ int hasNextRom(OneWire *ow, uint8_t *ROM) {//
   return ow->lastDiscrepancy > 0;
 }
 
-// Возвращает количество устройств на шине или код ошибки, если значение меньше 0
+//Возвращает количество устройств на шине или код ошибки, если значение меньше 0
 int owSearchCmd(OneWire *ow) {
   int device = 0, nextROM;
   owInit(ow);

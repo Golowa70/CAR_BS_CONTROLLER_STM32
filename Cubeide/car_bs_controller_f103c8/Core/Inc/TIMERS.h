@@ -9,7 +9,7 @@
 #define USE_GLOBAL_TIMERS
 
 #ifdef USE_GLOBAL_TIMERS
-	#define MAX_GTIMERS 			7
+	#define MAX_GTIMERS 			8
 
 	#define TIMER_PUMP_OFF			0
 	#define TIMER_CONV_U_OFF		1
@@ -18,6 +18,8 @@
 	#define TIMER_FRIDGE_IGN_OFF	4
 	#define TIMER_SHUTDOWN_DELAY	5
 	#define TIMER_PRX_SENS_FEEDBACK	6
+	#define TIMER_TEMP_SENS_UPDATE  7
+
 
 #endif
 

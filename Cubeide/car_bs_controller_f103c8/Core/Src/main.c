@@ -259,18 +259,11 @@ const char* const parameters_names[]  =
   uint8_t display_width;
   uint8_t display_num_lines;
 
-  //****** Errors ***************************************************************************
 
  //******** BUTTONS ******************************************************
   enum Buttons{
   	BUTTON_UP,BUTTON_DOWN,BUTTON_ENTER,BUTTON_ESC,MAX_BUTTONS
   };
-
-   enum ButtonHandlerMode{
-  	NAVI_MODE,EDIT_MODE
-  };
-
-   enum ButtonHandlerMode BtnHandlerMode = NAVI_MODE;
 
    static uint16_t btn_state = 0;
    uint8_t btnStatesArray[MAX_BUTTONS] = {0,};
@@ -336,13 +329,17 @@ uint16_t fnEmaFilterBatVolt(uint16_t new_value);
 uint16_t fnEmaFilterSensVolt(uint16_t new_value);
 uint16_t fnEmaFilterResSens(uint16_t new_value);
 
-long map(long x, long in_min, long in_max, long out_min, long out_max);
+uint8_t map(uint8_t x, uint8_t in_min, uint8_t in_max, uint8_t out_min, uint8_t out_max);
 
 //
 void fnPumpControl(struct MyData *data, struct SetpointsStruct *setpoints);
 void fnWaterLevelControl(struct MyData *data, struct SetpointsStruct *setpoints);
 void fnConverterControl(struct MyData *data, struct SetpointsStruct *setpoints);
 void fnFridgeControl(struct MyData *data, struct SetpointsStruct *setpoints);
+void fnMainPowerControl(struct MyData *data, struct SetpointsStruct *setpoints);
+void fnInputsUpdate(void);
+uint8_t fnDebounce(uint8_t sample);
+void fnOutputsUpdate(struct MyData *data);
 
 /* USER CODE END PFP */
 
@@ -439,12 +436,17 @@ int main(void)
 //READ SETPOINTS FROM FLASH W25Q
 	W25qxx_ReadBytes(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR*FLASH_SECTOR_SIZE, MENU_SETPOINTS_NUM_ITEMS);
 
-//ONE WIRE
+//ONE WIRE INIT
 	get_ROMid();
-	InitGTimers();
-	StartGTimer(TIMER_CONV_U_OFF);
-	StartGTimer(TIMER_PRX_SENS_FEEDBACK);
 
+//TIMERS INIT
+	InitGTimers();
+	//StartGTimer(TIMER_CONV_U_OFF);
+	StartGTimer(TIMER_PRX_SENS_FEEDBACK);
+	StartGTimer(TIMER_TEMP_SENS_UPDATE);
+
+//GET TEMPERATURE
+	get_Temperature();
 
   /* USER CODE END 2 */
 
@@ -457,39 +459,37 @@ int main(void)
 	   {
 		  flag_blink = !flag_blink;
 		  time_b = HAL_GetTick();
-		  get_Temperature();
 	   }
 
-	  main_data.inside_temperature = Temp[0];
-	  main_data.outside_temperature = Temp[1];
 
 	  fnMenuProcess();
-
 	  btn_state = fnGetPressKey();// опрос кнопок
-
 	  ProcessTimers(&sys_timer);
 
-	  main_data.door_switch_state = true;
-
-
+	  fnInputsUpdate();
 	  fnPumpControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnWaterLevelControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnConverterControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnFridgeControl(&main_data, &SetpointsUnion.setpoints_data);
+	  fnMainPowerControl(&main_data, &SetpointsUnion.setpoints_data);
+	  fnOutputsUpdate(&main_data);
 
-	  if (GetGTimer(TIMER_CONV_U_OFF) >= 10000) {
+	  if (GetGTimer(TIMER_TEMP_SENS_UPDATE) >= TEMP_SENS_UPDATE_PERIOD) {
 		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		  StartGTimer(TIMER_CONV_U_OFF);
-		  main_data.proximity_sensor_state = 1-main_data.proximity_sensor_state;
+		  get_Temperature();
+		  main_data.inside_temperature = Temp[0];
+		  main_data.outside_temperature = Temp[1];
+		  main_data.fridge_temperature = Temp[2];
+		  StartGTimer(TIMER_TEMP_SENS_UPDATE);
 	  }
 
 //---------------------------------------------------------------------------------------
 	  if (flag_adc_complet == true) // если сработало прерывание от DMA АЦП
 	  		{
 	  			flag_adc_complet = false;
-	  			main_data.battery_voltage = fnEmaFilterBatVolt(adc_source_value[0]) * ADC_REFERENCE; 		// значение напряжения после фильтрации
+	  			main_data.battery_voltage = fnEmaFilterBatVolt(adc_source_value[0]) * ADC_REFERENCE * ADC_BAT_VOLT_DIVIDER; 		// значение напряжения после фильтрации
 	  			main_data.sensors_supply_voltage = (fnEmaFilterSensVolt(adc_source_value[1]) * ADC_REFERENCE);
-	  			main_data.water_level_liter = (fnEmaFilterResSens(adc_source_value[2]) / ADC_RES_SENS_DIVIDER);
+	  			main_data.res_sensor_resistance = (fnEmaFilterResSens(adc_source_value[2]) / ADC_RES_SENS_DIVIDER);
 
 	  			for (uint8_t i = 0; i < ADC_CHANELS; i++) {	// обнуляем массив со значениями от АЦП
 	  				adc_source_value[i] = 0;
@@ -1324,20 +1324,19 @@ void fnPrintMenuParamView(void){
 void fnPrintMainView(void){
 
   char buffer[20] = {0,};
-  uint8_t float_m, float_n; // переменные для разбития числа на целую и дробную часть
+  uint16_t float_m, float_n; // переменные для разбития числа на целую и дробную часть
 
   u8g2_ClearBuffer(&u8g2);					//
-
-
   u8g2_SetFont(&u8g2,u8g2_font_5x7_tr);
 
   u8g2_DrawBox(&u8g2,98,1,31,8);
   u8g2_DrawBox(&u8g2,98,11,31,8);
   u8g2_DrawBox(&u8g2,98,21,31,8);
+  u8g2_DrawBox(&u8g2,98,31,31,8);
 
   u8g2_SetDrawColor(&u8g2,0);
 
-  float_m = (uint8_t)(main_data.battery_voltage * 10);
+  float_m = (uint16_t)(main_data.battery_voltage * 10);
   float_n = float_m%10;
   float_m = float_m/10;
   snprintf(buffer,sizeof(buffer),"%d.%dv",float_m, float_n);
@@ -1348,6 +1347,9 @@ void fnPrintMainView(void){
 
   snprintf(buffer,sizeof(buffer),"< %dC", (int)main_data.outside_temperature);
   u8g2_DrawStr(&u8g2, 98, 28, buffer);
+
+  snprintf(buffer,sizeof(buffer),"f %dC", (int)main_data.fridge_temperature);
+  u8g2_DrawStr(&u8g2, 98, 38, buffer);
 
   u8g2_SetDrawColor(&u8g2,1);
 
@@ -1360,7 +1362,7 @@ void fnPrintMainView(void){
   else{
 	u8g2_SetDrawColor(&u8g2,0);
 	u8g2_DrawBox(&u8g2,64,1,21,8);
-	u8g2_SetDrawColor(&u8g2,0);
+	u8g2_SetDrawColor(&u8g2,1);
   }
 
   if(main_data.converter_output_state){
@@ -1412,8 +1414,7 @@ void fnPrintMainView(void){
   }
 
   snprintf(buffer,sizeof(buffer),"%d ",main_data.water_level_liter);
-  u8g2_SetFont(&u8g2, u8g2_font_fub20_tn);	//
- // u8g2_SetFont(&u8g2,u8g2_font_6x12_tr);
+  u8g2_SetFont(&u8g2, u8g2_font_fub20_tn);
   u8g2_DrawStr(&u8g2,55, 55, buffer);
 
   W25qxx_ReadBytes(imageBuff, (IMAGE_WATER_LEVEL), 1024);
@@ -1763,9 +1764,16 @@ void fnPumpControl(struct MyData *data, struct SetpointsStruct *setpoints){
 //************************************************************************************
 
 //
-long map(long x, long in_min, long in_max, long out_min, long out_max)
+uint8_t map(uint8_t x, uint8_t in_min, uint8_t in_max, uint8_t out_min, uint8_t out_max)
 {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+	uint8_t devider = (in_max - in_min);
+
+	if(devider>0){
+		return (x - in_min) * (out_max - out_min) / devider + out_min;
+	}
+	else {
+		return 0;
+	}
 }
 //*************************************************************************************
 
@@ -1773,7 +1781,7 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
 // fnWaterLevelControl
 void fnWaterLevelControl(struct MyData *data, struct SetpointsStruct *setpoints)
 {
-	data->water_level_liter =  map((long)data->res_sensor_resistance, (long)setpoints->water_sens_min,(long)setpoints->water_sens_max,0,(long)setpoints->water_tank_capacity);
+	data->water_level_liter = map(data->res_sensor_resistance,setpoints->water_sens_min,setpoints->water_sens_max,0,setpoints->water_tank_capacity);
 }
 //*******************************************************************************************
 
@@ -1781,7 +1789,7 @@ void fnWaterLevelControl(struct MyData *data, struct SetpointsStruct *setpoints)
 void fnConverterControl(struct MyData *data, struct SetpointsStruct *setpoints)
 {
 
-  uint8_t voltage = (uint8_t)data->battery_voltage * 10;
+  uint16_t voltage = (uint16_t)data->battery_voltage * 10;
   static bool flag_convOff_due_voltage;    // флаг что конветер был выключен по напряжению
   static bool flag_convOff_due_ign_switch; // флаг что конветер был выключен по таймеру после выключения зажигания
 
@@ -1851,11 +1859,11 @@ void fnConverterControl(struct MyData *data, struct SetpointsStruct *setpoints)
 }
 //*****************************************************************************************
 
-//convreter control
+//FRIDGE RELAY CONTROL
 void fnFridgeControl(struct MyData *data, struct SetpointsStruct *setpoints)
 {
 
-  uint8_t voltage = (uint8_t)data->battery_voltage * 10;
+  uint16_t voltage = (uint16_t)data->battery_voltage * 10;
   static bool flag_fridgeOff_due_voltage;    // флаг что конветер был выключен по напряжению
   static bool flag_fridgeOff_due_ign_switch; // флаг что конветер был выключен по таймеру после выключения зажигания
 
@@ -1925,6 +1933,78 @@ void fnFridgeControl(struct MyData *data, struct SetpointsStruct *setpoints)
 }
 //*****************************************************************************************
 
+// Main power control
+void fnMainPowerControl(struct MyData *data, struct SetpointsStruct *setpoints)
+{
+  static bool state = true;
+
+  if(data->ignition_switch_state)
+  {
+	StartGTimer(TIMER_SHUTDOWN_DELAY);
+    state = true;
+  }
+  else
+  {
+	if (GetGTimer(TIMER_SHUTDOWN_DELAY) > (setpoints->shutdown_delay * HOUR))state = false;
+  }
+
+  data->main_supply_output_state = state;
+}
+//**********************************************************************
+
+//
+void fnInputsUpdate(void){
+
+  static uint8_t inputs_undebounced_sample = 0;
+  static uint8_t inputs_debounced_state = 0;
+
+  if (!HAL_GPIO_ReadPin(DOOR_INPUT_GPIO_Port, DOOR_INPUT_Pin))inputs_undebounced_sample |= (1 << 0);
+  else  inputs_undebounced_sample &= ~(1 << 0);
+
+  if (!HAL_GPIO_ReadPin(PRX_SENS_INPUT_GPIO_Port, PRX_SENS_INPUT_Pin))inputs_undebounced_sample |= (1 << 1);
+  else inputs_undebounced_sample &= ~(1 << 1);
+
+  if (HAL_GPIO_ReadPin(IGN_INPUT_GPIO_Port,IGN_INPUT_Pin))inputs_undebounced_sample |= (1 << 2);
+  else inputs_undebounced_sample &= ~(1 << 2);
+
+  inputs_debounced_state = fnDebounce(inputs_undebounced_sample);
+
+  main_data.door_switch_state = (inputs_debounced_state & (1 << 0));
+  main_data.proximity_sensor_state = (inputs_debounced_state & (1 << 1));
+  main_data.ignition_switch_state = (inputs_debounced_state & (1 << 2));
+
+}
+//**********************************************************************************
+
+//Debounce
+uint8_t fnDebounce(uint8_t sample) // антидребезг на основе вертикального счетчика
+{
+      static uint8_t state, cnt0, cnt1;
+      uint8_t delta, toggle;
+
+      delta = sample ^ state;
+      cnt1 = cnt1 ^ cnt0;
+      cnt0 = ~cnt0;
+
+      cnt0 &= delta;
+      cnt1 &= delta;
+
+      toggle = cnt0 & cnt1;
+      state ^= toggle;
+      return state;
+}
+//*************************************************************************
+
+//Outputs Update
+void fnOutputsUpdate(struct MyData *data)
+{
+	HAL_GPIO_WritePin(PUMP_OUTPUT_GPIO_Port, PUMP_OUTPUT_Pin, data->pump_output_state);
+	HAL_GPIO_WritePin(FRIDGE_OUTPUT_GPIO_Port, FRIDGE_OUTPUT_Pin, data->fridge_output_state);
+	HAL_GPIO_WritePin(CONV_OUTPUT_GPIO_Port, CONV_OUTPUT_Pin, data->converter_output_state);
+	HAL_GPIO_WritePin(MAIN_SUPPLY_GPIO_Port, MAIN_SUPPLY_Pin, data->main_supply_output_state);
+	HAL_GPIO_WritePin(SENS_SUPPLY_GPIO_Port, SENS_SUPPLY_Pin, data->sensors_supply_output_state);
+}
+//*******************************************************************************
 
 /* USER CODE END 4 */
 

@@ -226,12 +226,20 @@ void Error_Handler(void);
 //ADC
 #define ADC_CHANELS					3
 #define ADC_REFERENCE			 	0.0008      //3.3/4095=0.0008; 18.46*0.0008=0.01487
-#define ADC_BAT_VOLT_DIVIDER		1//11			//R1=100k, R2=10k; Vin=36 Vout=3.27; 36/3.27=11;
+#define ADC_BAT_VOLT_DIVIDER		11			//R1=100k, R2=10k; Vin=36 Vout=3.27; 36/3.27=11;
 #define ADC_SENS_VOLT_DIVIDER		1//3.25		//R1=27k, R2=12k; Vin=10 Vout=3.08; 10/3.08=3.246;
 #define	ADC_RES_SENS_DIVIDER		100
 
 #define EMA_FILTER_K				0.1  		//коэффициент сглаживания от 0 до 1 чем меньше, тем плавнее фильтр
 
+#define TEMP_SENS_UPDATE_PERIOD		1000		//ms
+
+//ERRORS
+#define ERROR_NOTHING  			0b00000000
+#define ERROR_TEM_SENS  		0b00000001
+#define ERROR_SENS_SUPPLY  		0b00000010
+#define ERROR_RES_SENS  		0b00000100
+#define ERROR_FLASH_READ  		0b00001000
 
 /* USER CODE END Private defines */
 

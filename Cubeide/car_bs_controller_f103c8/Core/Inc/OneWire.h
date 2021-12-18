@@ -11,6 +11,9 @@
 #ifndef STM32_DS18X20_ONEWIRE_H
 #define STM32_DS18X20_ONEWIRE_H
 #include <stdint.h>
+
+#define MAXDEVICES_ON_THE_BUS 		3
+
 #define ONEWIRE_NOBODY 0xF0 //команда поиска ROM
 #define ONEWIRE_SEARCH 0xF0 //команда поиска ROM
 #define ONEWIRE_SKIP_ROM 0xCC  //команда пропуска ROM
@@ -43,6 +46,8 @@ typedef struct {
   uint8_t code[6];
   uint8_t crc;
 } RomCode; //
+
+RomCode idsOnFlash; // структура для хранения адресов датчиков в флэш памяти
 
 typedef struct {
   uint8_t crc;
