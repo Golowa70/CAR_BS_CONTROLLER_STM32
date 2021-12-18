@@ -9,7 +9,7 @@
 #define USE_GLOBAL_TIMERS
 
 #ifdef USE_GLOBAL_TIMERS
-	#define MAX_GTIMERS 			6
+	#define MAX_GTIMERS 			7
 
 	#define TIMER_PUMP_OFF			0
 	#define TIMER_CONV_U_OFF		1
@@ -17,12 +17,13 @@
 	#define TIMER_FRIDGE_U_OFF		3
 	#define TIMER_FRIDGE_IGN_OFF	4
 	#define TIMER_SHUTDOWN_DELAY	5
+	#define TIMER_PRX_SENS_FEEDBACK	6
 
 #endif
 
 #define SEC 			1000
-#define MIN 			60 * sec
-#define HOUR 			60 * min
+#define MIN 			60 * SEC
+#define HOUR 			60 * MIN
 
 
 

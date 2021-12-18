@@ -9,12 +9,10 @@ u8g2_font.c:222:8:u8g2_GetFontBBXOffY	16	static
 u8g2_font.c:228:9:u8g2_GetFontCapitalAHeight	16	static
 u8g2_font.c:237:9:u8g2_font_decode_get_unsigned_bits	24	static
 u8g2_font.c:282:8:u8g2_font_decode_get_signed_bits	24	static
-u8g2_font.c:296:13:u8g2_add_vector_y	16	static
-u8g2_font.c:316:13:u8g2_add_vector_x	16	static
 u8g2_font.c:387:6:u8g2_font_decode_len	40	static
 u8g2_font.c:485:13:u8g2_font_setup_decode	24	static
-u8g2_font.c:519:8:u8g2_font_decode_glyph	48	static
-u8g2_font.c:627:16:u8g2_font_get_glyph_data	32	static
+u8g2_font.c:519:8:u8g2_font_decode_glyph	32	static
+u8g2_font.c:627:16:u8g2_font_get_glyph_data	24	static
 u8g2_font.c:714:20:u8g2_font_draw_glyph	32	static
 u8g2_font.c:731:9:u8g2_IsGlyph	16	static
 u8g2_font.c:740:8:u8g2_GetGlyphWidth	24	static

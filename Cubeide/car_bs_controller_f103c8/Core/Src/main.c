@@ -16,7 +16,7 @@
 #include "w25qxx.h"
 //#include "stdio.h"
 #include "stdbool.h"
-#include "stdint.h".h"
+//#include "stdint.h".h"
 #include "button.h"
 #include "mini-printf.h"
 #include "OneWire.h"
@@ -38,7 +38,12 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+
 SPI_HandleTypeDef hspi1;
+
+TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart3;
@@ -91,23 +96,23 @@ union {
 //*********** Main data *******************************************************************************
 struct MyData
 {
-  float outside_temperature;      //  наружная температура
-  float inside_temperature;       // температура внутри
-  float fridge_temperature;        // температура третьего датчика(пока не используется)
-  uint16_t res_sensor_resistance;    // сопротивление резистивного датчика
-  uint8_t battery_voltage;          // напряжени бортсети ( например 124 это 12.4в)
-  uint8_t sensors_supply_voltage;   // напряжение питания датчиков 5в
-  uint8_t water_level_liter;      // уровень воды в литрах
+  float outside_temperature;      	//  наружная температура
+  float inside_temperature;       	// температура внутри
+  float fridge_temperature;        	// температура третьего датчика(пока не используется)
+  uint16_t res_sensor_resistance;   // сопротивление резистивного датчика
+  float battery_voltage;          // напряжени бортсети ( например 124 это 12.4в)
+  float sensors_supply_voltage;   // напряжение питания датчиков 5в
+  uint8_t water_level_liter;      	// уровень воды в литрах
   uint8_t error_code;
 
-  bool door_switch_state;         // состояние концевика задней двери
-  bool proximity_sensor_state;    // состояние датчика приближения
-  bool ignition_switch_state;     // состояние входа зажигания
-  bool converter_output_state;    // состояние выхода управления инвертором 12/220в
-  bool fridge_output_state;        //состояние выхода освещения
-  bool pump_output_state;         //состояние выхода насоса
+  bool door_switch_state;         	// состояние концевика задней двери
+  bool proximity_sensor_state;    	// состояние датчика приближения
+  bool ignition_switch_state;     	// состояние входа зажигания
+  bool converter_output_state;    	// состояние выхода управления инвертором 12/220в
+  bool fridge_output_state;       	//состояние выхода освещения
+  bool pump_output_state;         	//состояние выхода насоса
   bool sensors_supply_output_state; // состояние выхода управления питанием сенсоров 5в
-  bool main_supply_output_state;  // состояние выхода управления общим питанием 7.5в
+  bool main_supply_output_state;  	// состояние выхода управления общим питанием 7.5в
   bool flag_system_started;
 
 } main_data;
@@ -181,21 +186,62 @@ const char* const parameters_names[]  =
   //Массив минимальных значений параметров
   uint8_t param_range_min[MENU_SETPOINTS_NUM_ITEMS]  =
   {
-    3,0,80,1,100,
-	1,0,80,1,100,
-	1,5,1,0,10,
-	20,0,1,1,0,
-	10,0,0,0,0
+	PUMP_T_OFF_MIN,
+	PUMP_OUT_MODE_MIN,
+	CONV_U_OFF_MIN,
+	CONV_T_U_OFF_MIN,
+	CONV_U_ON_MIN,
+	CONV_T_IGN_OFF_MIN,
+	CONV_OUT_MODE_MIN,
+	FRIDGE_U_OFF_MIN,
+	FRIDGE_T_U_OFF_MIN,
+	FRIDGE_U_ON_MIN,
+	FRIDGE_T_IGN_OFF_MIN,
+	FRIDGE_TEMP_ON_MIN,
+	FRIDGE_TEMP_OFF_MIN,
+	FRIDGE_OUT_MODE_MIN,
+	WATER_SENS_MIN_MIN,
+	WATER_SENS_MAX_MIN,
+	WATER_SENS_CORR_MIN,
+	WATER_TANK_CAP_MIN,
+	SHUTDOWN_DELAY_MIN,
+	U_CORR_MIN,
+	BRIGHTNESS_MIN,
+	LOGO_MIN,
+	INSIDE_SENS_ID_MIN,
+	OUTSIDE_SENS_ID_MIN,
+	FRIDGE_SENS_ID_MIN
   };
 
   //Массив максимальных значений параметров
   uint8_t param_range_max[MENU_SETPOINTS_NUM_ITEMS]  =
   {
-   20,2,130,240,180,
-   240,2,130,240,180,
-   240,40,20,3,100,
-   240,255,100,12,255,
-   100,2,2,2,2
+	PUMP_T_OFF_MAX,
+	PUMP_OUT_MODE_MAX,
+	CONV_U_OFF_MAX,
+	CONV_T_U_OFF_MAX,
+	CONV_U_ON_MAX,
+	CONV_T_IGN_OFF_MAX,
+	CONV_OUT_MODE_MAX,
+	FRIDGE_U_OFF_MAX,
+	FRIDGE_T_U_OFF_MAX,
+	FRIDGE_U_ON_MAX,
+	FRIDGE_T_IGN_OFF_MAX,
+	FRIDGE_TEMP_ON_MAX,
+	FRIDGE_TEMP_OFF_MAX,
+	FRIDGE_OUT_MODE_MAX,
+	WATER_SENS_MIN_MAX,
+	WATER_SENS_MAX_MAX,
+	WATER_SENS_CORR_MAX,
+	WATER_TANK_CAP_MAX,
+	SHUTDOWN_DELAY_MAX,
+	U_CORR_MAX,
+	BRIGHTNESS_MAX,
+	LOGO_MAX,
+	INSIDE_SENS_ID_MAX,
+	OUTSIDE_SENS_ID_MAX,
+	FRIDGE_SENS_ID_MAX
+
   };
 
   uint8_t menu_current_item = 0; // Переменная указатель на текущий пункт меню
@@ -233,8 +279,12 @@ const char* const parameters_names[]  =
    Button_Struct_t Button_C;
    Button_Struct_t Button_D;
 
-  //********* OTHER VARIABLES *********************************************************
+  //********* ADC ****************************************************************
+   volatile uint16_t adc_source_value[ADC_CHANELS] = {0,};
+   volatile bool flag_adc_complet = false;
 
+
+  //********* OTHER VARIABLES *********************************************************
 	uint8_t main_process_step = 0;
 	uint32_t  time_b = 0;
 	bool flag_blink = false; // флаг для мигания чего либо на экране
@@ -250,6 +300,9 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_DMA_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 //DISPLAY FUNCTION
@@ -277,6 +330,19 @@ uint8_t Button_A_Read(void);
 uint8_t Button_B_Read(void);
 uint8_t Button_C_Read(void);
 uint8_t Button_D_Read(void);
+
+//ADC
+uint16_t fnEmaFilterBatVolt(uint16_t new_value);
+uint16_t fnEmaFilterSensVolt(uint16_t new_value);
+uint16_t fnEmaFilterResSens(uint16_t new_value);
+
+long map(long x, long in_min, long in_max, long out_min, long out_max);
+
+//
+void fnPumpControl(struct MyData *data, struct SetpointsStruct *setpoints);
+void fnWaterLevelControl(struct MyData *data, struct SetpointsStruct *setpoints);
+void fnConverterControl(struct MyData *data, struct SetpointsStruct *setpoints);
+void fnFridgeControl(struct MyData *data, struct SetpointsStruct *setpoints);
 
 /* USER CODE END PFP */
 
@@ -316,6 +382,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_SPI1_Init();
   MX_USART3_UART_Init();
+  MX_DMA_Init();
+  MX_ADC1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
 //FLASH INIT
@@ -324,6 +393,11 @@ int main(void)
 	//W25qxx_EraseBlock(0); // 65536 байт
 	//W25qxx_EraseSector(0); // 4096 байт
 
+//ADC INIT
+  	HAL_ADCEx_Calibration_Start(&hadc1);
+  	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_source_value, ADC_CHANELS	); // DMA считывает ADC_CHANELS значений и инициирует прерывание
+
+
 //DISPLAY INIT
 	u8g2_Setup_st7565_nhd_c12864_f(&u8g2, U8G2_R2, u8x8_byte_4wire_hw_spi,
 			u8g2_gpio_and_delay_stm32);
@@ -331,8 +405,10 @@ int main(void)
 	u8g2_SetPowerSave(&u8g2, 0); // wake up display
 	u8g2_SetContrast(&u8g2, 250);
 	u8g2_ClearDisplay(&u8g2);
-	u8g2_SetFont(&u8g2, u8g2_font_courB18_tr);
-	u8g2_DrawStr(&u8g2, 20, 30, "Hello!");
+	//u8g2_SetFont(&u8g2, u8g2_font_courB18_tr);
+	u8g2_ClearBuffer(&u8g2);
+	W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_3, 1024);
+	u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
 	u8g2_SendBuffer(&u8g2);
 	HAL_Delay(1000);
 	display_height = u8g2_GetDisplayHeight(&u8g2);
@@ -366,7 +442,8 @@ int main(void)
 //ONE WIRE
 	get_ROMid();
 	InitGTimers();
-	StartGTimer(TIMER_PUMP_OFF);
+	StartGTimer(TIMER_CONV_U_OFF);
+	StartGTimer(TIMER_PRX_SENS_FEEDBACK);
 
 
   /* USER CODE END 2 */
@@ -375,7 +452,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
+	  //blink
 	  if((HAL_GetTick() - time_b) > BLINK_INTERVAL) // интервал 500мс
 	   {
 		  flag_blink = !flag_blink;
@@ -392,12 +469,36 @@ int main(void)
 
 	  ProcessTimers(&sys_timer);
 
-	  if (GetGTimer(TIMER_PUMP_OFF) >= SetpointsUnion.setpoints_data.pump_T_off*SEC) {
+	  main_data.door_switch_state = true;
+
+
+	  fnPumpControl(&main_data, &SetpointsUnion.setpoints_data);
+	  fnWaterLevelControl(&main_data, &SetpointsUnion.setpoints_data);
+	  fnConverterControl(&main_data, &SetpointsUnion.setpoints_data);
+	  fnFridgeControl(&main_data, &SetpointsUnion.setpoints_data);
+
+	  if (GetGTimer(TIMER_CONV_U_OFF) >= 10000) {
 		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		  StartGTimer(TIMER_PUMP_OFF);
+		  StartGTimer(TIMER_CONV_U_OFF);
+		  main_data.proximity_sensor_state = 1-main_data.proximity_sensor_state;
 	  }
 
+//---------------------------------------------------------------------------------------
+	  if (flag_adc_complet == true) // если сработало прерывание от DMA АЦП
+	  		{
+	  			flag_adc_complet = false;
+	  			main_data.battery_voltage = fnEmaFilterBatVolt(adc_source_value[0]) * ADC_REFERENCE; 		// значение напряжения после фильтрации
+	  			main_data.sensors_supply_voltage = (fnEmaFilterSensVolt(adc_source_value[1]) * ADC_REFERENCE);
+	  			main_data.water_level_liter = (fnEmaFilterResSens(adc_source_value[2]) / ADC_RES_SENS_DIVIDER);
 
+	  			for (uint8_t i = 0; i < ADC_CHANELS; i++) {	// обнуляем массив со значениями от АЦП
+	  				adc_source_value[i] = 0;
+	  			}
+
+	  			HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &adc_source_value, ADC_CHANELS); // перезапускаем DMA
+	  		}
+
+//------------------------------------------------------------------------------------------------------------
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -413,6 +514,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -441,6 +543,73 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 3;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_55CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_9;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = ADC_REGULAR_RANK_3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -478,6 +647,51 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 7200;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 60000;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -548,6 +762,22 @@ static void MX_USART3_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -563,7 +793,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(W25Q_CS_GPIO_Port, W25Q_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, W25Q_CS_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
@@ -572,14 +802,15 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LCD_DC_GPIO_Port, LCD_DC_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LCD_DC_Pin|SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin
+                          |PUMP_OUTPUT_Pin|MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : W25Q_CS_Pin */
-  GPIO_InitStruct.Pin = W25Q_CS_Pin;
+  /*Configure GPIO pins : W25Q_CS_Pin LCD_LED_Pin */
+  GPIO_InitStruct.Pin = W25Q_CS_Pin|LCD_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(W25Q_CS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_Pin LCD_RESET_Pin LCD_CS_Pin */
   GPIO_InitStruct.Pin = LED_Pin|LCD_RESET_Pin|LCD_CS_Pin;
@@ -588,18 +819,34 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LCD_DC_Pin */
-  GPIO_InitStruct.Pin = LCD_DC_Pin;
+  /*Configure GPIO pins : LCD_DC_Pin SENS_SUPPLY_Pin BUZZER_Pin CONV_OUTPUT_Pin
+                           PUMP_OUTPUT_Pin MAIN_SUPPLY_Pin FRIDGE_OUTPUT_Pin */
+  GPIO_InitStruct.Pin = LCD_DC_Pin|SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin
+                          |PUMP_OUTPUT_Pin|MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LCD_DC_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BUTTON_ENTER_Pin BUTTON_ESC_Pin BUTTON_UP_Pin BUTTON_DOWN_Pin */
-  GPIO_InitStruct.Pin = BUTTON_ENTER_Pin|BUTTON_ESC_Pin|BUTTON_UP_Pin|BUTTON_DOWN_Pin;
+  /*Configure GPIO pins : DOOR_INPUT_Pin PRX_SENS_INPUT_Pin BUTTON_ENTER_Pin BUTTON_ESC_Pin
+                           BUTTON_UP_Pin */
+  GPIO_InitStruct.Pin = DOOR_INPUT_Pin|PRX_SENS_INPUT_Pin|BUTTON_ENTER_Pin|BUTTON_ESC_Pin
+                          |BUTTON_UP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : IGN_INPUT_Pin */
+  GPIO_InitStruct.Pin = IGN_INPUT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(IGN_INPUT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BUTTON_DOWN_Pin */
+  GPIO_InitStruct.Pin = BUTTON_DOWN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(BUTTON_DOWN_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -1008,7 +1255,7 @@ void fnPrintMenuParamItemVal(uint8_t num_item, uint8_t num_line){
     break;
 
   case 6:
-    if(main_data.res_sensor_resistance <= MAX_RESISTANCE)snprintf(buffer,sizeof(buffer),"%d",main_data.res_sensor_resistance);
+    if(main_data.res_sensor_resistance <= WATER_SENS_MAX_MAX)snprintf(buffer,sizeof(buffer),"%d",main_data.res_sensor_resistance);
     else snprintf(buffer,sizeof(buffer),"xxx");
     break;
 
@@ -1164,8 +1411,9 @@ void fnPrintMainView(void){
     u8g2_SetDrawColor(&u8g2,1);
   }
 
-  snprintf(buffer,sizeof(buffer),"%d L",main_data.water_level_liter);
-  u8g2_SetFont(&u8g2, u8g2_font_ncenB18_tr);	//
+  snprintf(buffer,sizeof(buffer),"%d ",main_data.water_level_liter);
+  u8g2_SetFont(&u8g2, u8g2_font_fub20_tn);	//
+ // u8g2_SetFont(&u8g2,u8g2_font_6x12_tr);
   u8g2_DrawStr(&u8g2,55, 55, buffer);
 
   W25qxx_ReadBytes(imageBuff, (IMAGE_WATER_LEVEL), 1024);
@@ -1388,28 +1636,296 @@ uint8_t Button_A_Read(void)
 {
 	return HAL_GPIO_ReadPin(BUTTON_UP_GPIO_Port, BUTTON_UP_Pin) ? 0 : 1;
 }
-//**********************************************************************************
 
-//
 uint8_t Button_B_Read(void)
 {
 	return HAL_GPIO_ReadPin(BUTTON_DOWN_GPIO_Port, BUTTON_DOWN_Pin) ? 0 : 1;
 }
-//*********************************************************************************
 
-//
 uint8_t Button_C_Read(void)
 {
 	return HAL_GPIO_ReadPin(BUTTON_ENTER_GPIO_Port, BUTTON_ENTER_Pin) ? 0 : 1;
 }
-//****************************************************************************************
 
-//
 uint8_t Button_D_Read(void)
 {
 	return HAL_GPIO_ReadPin(BUTTON_ESC_GPIO_Port, BUTTON_ESC_Pin) ? 0 : 1;
 }
 //***********************************************************************************
+
+//
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	if(hadc->Instance == ADC1)
+	{
+		HAL_ADC_Stop(&hadc1);
+		flag_adc_complet = true;
+	}
+}
+//************************************************************************************
+
+//фильтр экспоненциальное бегущее среднее для напряжения аккумулятора -----------------------------------
+uint16_t fnEmaFilterBatVolt(uint16_t new_value)
+{
+	static float k = EMA_FILTER_K;
+	static float filtered_value = 0;
+
+	filtered_value += ((float)new_value - filtered_value) * k;
+	return  filtered_value;
+}
+
+//фильтр экспоненциальное бегущее среднее для напряжения питания сенсоров ----
+uint16_t fnEmaFilterSensVolt(uint16_t new_value)
+{
+	static float k = EMA_FILTER_K;
+	static float filtered_value = 0;
+
+	filtered_value += ((float)new_value - filtered_value) * k;
+	return  filtered_value;
+}
+
+//фильтр экспоненциальное бегущее среднее для измерения сопротивления ------
+uint16_t fnEmaFilterResSens(uint16_t new_value)
+{
+	static float k = EMA_FILTER_K;
+	static float filtered_value = 0;
+
+	filtered_value += ((float)new_value - filtered_value) * k;
+	return  filtered_value;
+}
+//*************************************************************************************
+
+//
+void fnPumpControl(struct MyData *data, struct SetpointsStruct *setpoints){
+
+  bool prx_trigged = false;
+  static bool prx_old_state = false;
+  enum fsm_state {off, wait_for_prx,wait_for_T_off};
+  static enum fsm_state step = off;
+
+  if((data->proximity_sensor_state == true) && (prx_old_state == false) && (GetGTimer(TIMER_PRX_SENS_FEEDBACK) >= PRX_SENSOR_FEEDBACK_DELAY)){
+
+
+    StartGTimer(TIMER_PRX_SENS_FEEDBACK);
+    prx_trigged = true;
+  }
+
+  prx_old_state = data->proximity_sensor_state;
+
+
+  switch (setpoints->pump_out_mode){
+
+    case OFF_MODE:
+      data->pump_output_state = false;
+      break;
+
+    case ON_MODE:
+      if(!data->door_switch_state)step = off;
+      else data->pump_output_state = true;
+      break;
+
+    case AUTO_MODE:
+
+      switch (step)
+      {
+      case off:
+        data->pump_output_state = false;
+        StopGTimer(TIMER_PUMP_OFF);
+        if(data->door_switch_state)step = wait_for_prx;
+        else if(!data->door_switch_state)step = off;
+
+        break;
+
+      case wait_for_prx:
+        if(prx_trigged){
+          StartGTimer(TIMER_PUMP_OFF);
+          data->pump_output_state = true;
+          step = wait_for_T_off;
+        }
+        if(!data->door_switch_state)step = off;
+        break;
+
+      case wait_for_T_off:
+        if(!data->door_switch_state || prx_trigged || (GetGTimer(TIMER_PUMP_OFF) >= setpoints->pump_T_off * 1000 ))step = off;
+        break;
+
+      default:
+      break;
+      }
+
+      break;
+
+    default:
+    break;
+  }
+
+}
+//************************************************************************************
+
+//
+long map(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+//*************************************************************************************
+
+//
+// fnWaterLevelControl
+void fnWaterLevelControl(struct MyData *data, struct SetpointsStruct *setpoints)
+{
+	data->water_level_liter =  map((long)data->res_sensor_resistance, (long)setpoints->water_sens_min,(long)setpoints->water_sens_max,0,(long)setpoints->water_tank_capacity);
+}
+//*******************************************************************************************
+
+//convreter control
+void fnConverterControl(struct MyData *data, struct SetpointsStruct *setpoints)
+{
+
+  uint8_t voltage = (uint8_t)data->battery_voltage * 10;
+  static bool flag_convOff_due_voltage;    // флаг что конветер был выключен по напряжению
+  static bool flag_convOff_due_ign_switch; // флаг что конветер был выключен по таймеру после выключения зажигания
+
+  static bool state = true; // изначально (после старта) включен
+
+  switch (setpoints->conv_out_mode){
+
+    case OFF_MODE:
+      state = false;
+      StopGTimer(TIMER_CONV_U_OFF);
+      StopGTimer(TIMER_CONV_IGN_OFF);
+      break;
+
+    case ON_MODE:
+      state = true;
+      StopGTimer(TIMER_CONV_U_OFF);
+      StopGTimer(TIMER_CONV_IGN_OFF);
+      break;
+
+    case AUTO_MODE:
+
+      if (voltage >= setpoints->conv_U_on)
+      {
+        if (!flag_convOff_due_ign_switch)state = true; // если напряжение в пределах нормы включаем преобразователь
+        flag_convOff_due_voltage = false;    // флаг что было отключение по низкому напряжению
+        StopGTimer(TIMER_CONV_U_OFF); // останавливваем таймер выключения
+      }
+
+      if (voltage > setpoints->conv_U_on)
+      {
+    	StartGTimer(TIMER_CONV_U_OFF); // заряжаем таймер на выключение
+      }
+
+      else
+      {
+        if (GetGTimer(TIMER_CONV_U_OFF) > (setpoints->conv_T_U_off * SEC))
+        {
+          state = false;
+          flag_convOff_due_voltage = true;   // флаг что было отключение по низкому напряжению
+          StopGTimer(TIMER_CONV_U_OFF); // останавливаем таймер выключения
+        }
+      }
+
+      // отключение по таймеру после выключения зажигания
+      if (data->ignition_switch_state)
+      {
+        flag_convOff_due_ign_switch = false; //сброс флага что было отключение по ignition switch
+        if (!flag_convOff_due_voltage)state = true;
+        StartGTimer(TIMER_CONV_IGN_OFF);
+      }
+      else
+      {
+        if (GetGTimer(TIMER_CONV_IGN_OFF) > (setpoints->conv_T_IGN_off * MIN))
+        {
+          state = false;
+          flag_convOff_due_ign_switch = true; //установка флага что было отключение по ignition switch
+        }
+      }
+
+      break;
+
+    default:
+    break;
+  }
+
+  data->converter_output_state = state;
+}
+//*****************************************************************************************
+
+//convreter control
+void fnFridgeControl(struct MyData *data, struct SetpointsStruct *setpoints)
+{
+
+  uint8_t voltage = (uint8_t)data->battery_voltage * 10;
+  static bool flag_fridgeOff_due_voltage;    // флаг что конветер был выключен по напряжению
+  static bool flag_fridgeOff_due_ign_switch; // флаг что конветер был выключен по таймеру после выключения зажигания
+
+  static bool state = true; // изначально (после старта) включен
+
+  switch (setpoints->fridge_out_mode){
+
+    case OFF_MODE:
+      state = false;
+      StopGTimer(TIMER_FRIDGE_U_OFF);
+      StopGTimer(TIMER_FRIDGE_IGN_OFF);
+      break;
+
+    case ON_MODE:
+      state = true;
+      StopGTimer(TIMER_FRIDGE_U_OFF);
+      StopGTimer(TIMER_FRIDGE_IGN_OFF);
+      break;
+
+    case AUTO_MODE:
+
+      if (voltage >= setpoints->fridge_U_on)
+      {
+        if (!flag_fridgeOff_due_ign_switch)state = true; // если напряжение в пределах нормы включаем преобразователь
+        flag_fridgeOff_due_voltage = false;    // флаг что было отключение по низкому напряжению
+        StopGTimer(TIMER_FRIDGE_U_OFF); // останавливваем таймер выключения
+      }
+
+      if (voltage > setpoints->fridge_U_on)
+      {
+    	StartGTimer(TIMER_FRIDGE_U_OFF); // заряжаем таймер на выключение
+      }
+
+      else
+      {
+        if (GetGTimer(TIMER_FRIDGE_U_OFF) > (setpoints->fridge_T_U_off * SEC))
+        {
+          state = false;
+          flag_fridgeOff_due_voltage = true;   // флаг что было отключение по низкому напряжению
+          StopGTimer(TIMER_FRIDGE_U_OFF); // останавливаем таймер выключения
+        }
+      }
+
+      // отключение по таймеру после выключения зажигания
+      if (data->ignition_switch_state)
+      {
+        flag_fridgeOff_due_ign_switch = false; //сброс флага что было отключение по ignition switch
+        if (!flag_fridgeOff_due_voltage)state = true;
+        StartGTimer(TIMER_FRIDGE_IGN_OFF);
+      }
+      else
+      {
+        if (GetGTimer(TIMER_FRIDGE_IGN_OFF) > (setpoints->fridge_T_IGN_off * MIN))
+        {
+          state = false;
+          flag_fridgeOff_due_ign_switch = true; //установка флага что было отключение по ignition switch
+        }
+      }
+
+      break;
+
+    default:
+    break;
+  }
+
+  data->fridge_output_state = state;
+}
+//*****************************************************************************************
+
+
 /* USER CODE END 4 */
 
 /**

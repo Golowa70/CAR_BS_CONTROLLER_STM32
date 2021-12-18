@@ -17,7 +17,7 @@ void ProcessTimers(uint32_t * tick) {
 	uint32_t x = *tick;
 
 	if (x > 0) {
-		for (i=0; i<MAX_TIMERS; i++) {
+		for (i=0; i<MAX_GTIMERS; i++) {  //!!!! для локальных таймеров нужно добавить MAX_TIMERS
 			Timers[i] += x;
 #ifdef USE_GLOBAL_TIMERS
 			if (GTStates[i] == TIMER_RUNNING) {
