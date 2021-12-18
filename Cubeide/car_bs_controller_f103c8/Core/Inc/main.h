@@ -208,8 +208,8 @@ void Error_Handler(void);
 #define	U_CORR_MIN					0
 #define	U_CORR_MAX					255
 
-#define	BRIGHTNESS_MIN				10
-#define	BRIGHTNESS_MAX				100 	//%
+#define	LIGHT_T_OFF_MIN				0
+#define	LIGHT_T_OFF_MAX				255		//sec
 
 #define	LOGO_MIN					0
 #define	LOGO_MAX					2

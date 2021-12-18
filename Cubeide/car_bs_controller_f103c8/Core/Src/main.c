@@ -75,7 +75,7 @@ typedef struct SetpointsStruct { // структура для уставок
   uint8_t water_tank_capacity;
   uint8_t shutdown_delay;
   uint8_t U_correction;
-  uint8_t brightness;
+  uint8_t lcd_light_T_off;
   uint8_t logo;
   uint8_t inside_sensor_ID;
   uint8_t outside_sensor_ID;
@@ -167,7 +167,7 @@ const char* const parameters_names[]  =
 	const char i17[] = "Water tank cap";
 	const char i18[] = "Shutdown delay";
 	const char i19[] = "U correction";
-	const char i20[] = "Brightness";
+	const char i20[] = "Light T off";
 	const char i21[] = "Logo";
 	const char i22[] = "Inside sid";
 	const char i23[] = "Outside sid";
@@ -206,7 +206,7 @@ const char* const parameters_names[]  =
 	WATER_TANK_CAP_MIN,
 	SHUTDOWN_DELAY_MIN,
 	U_CORR_MIN,
-	BRIGHTNESS_MIN,
+	LIGHT_T_OFF_MIN,
 	LOGO_MIN,
 	INSIDE_SENS_ID_MIN,
 	OUTSIDE_SENS_ID_MIN,
@@ -236,7 +236,7 @@ const char* const parameters_names[]  =
 	WATER_TANK_CAP_MAX,
 	SHUTDOWN_DELAY_MAX,
 	U_CORR_MAX,
-	BRIGHTNESS_MAX,
+	LIGHT_T_OFF_MAX,
 	LOGO_MAX,
 	INSIDE_SENS_ID_MAX,
 	OUTSIDE_SENS_ID_MAX,
