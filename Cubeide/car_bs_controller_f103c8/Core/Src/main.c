@@ -53,7 +53,7 @@ u8g2_t u8g2;
 
 //*********** Setpoints variables *********************************************************************
 
-typedef struct SetpointsStruct { // структура для уставок
+struct SetpointsStruct { // структура для уставок
 
   uint8_t pump_T_off;
   uint8_t pump_out_mode;  		// Режим(выкл, авто, вкл).
@@ -81,13 +81,17 @@ typedef struct SetpointsStruct { // структура для уставок
   uint8_t outside_sensor_ID;
   uint8_t fridge_sensor_ID;
 
+  uint16_t magic_key;
+  uint16_t crc;
+
 }default_setpoints_data;
+
 
 //union
 union {
 
   struct SetpointsStruct setpoints_data;
-  uint8_t SetpointsArray[MENU_SETPOINTS_NUM_ITEMS];
+  uint8_t SetpointsArray[MENU_SETPOINTS_NUM_ITEMS+4]; // (+4) - два байта magic key + два байта контрольной суммы
 
 }SetpointsUnion; //
 
@@ -99,11 +103,12 @@ struct MyData
   float outside_temperature;      	//  наружная температура
   float inside_temperature;       	// температура внутри
   float fridge_temperature;        	// температура третьего датчика(пока не используется)
-  uint16_t res_sensor_resistance;   // сопротивление резистивного датчика
   float battery_voltage;          // напряжени бортсети ( например 124 это 12.4в)
   float sensors_supply_voltage;   // напряжение питания датчиков 5в
+  uint16_t res_sensor_resistance;   // сопротивление резистивного датчика
   uint8_t water_level_liter;      	// уровень воды в литрах
   uint8_t error_code;
+  uint8_t btn_state;
 
   bool door_switch_state;         	// состояние концевика задней двери
   bool proximity_sensor_state;    	// состояние датчика приближения
@@ -115,7 +120,7 @@ struct MyData
   bool main_supply_output_state;  	// состояние выхода управления общим питанием 7.5в
   bool lcd_light_output_state;
   bool flag_system_started;
-  bool flag_lcd_turn_on;
+  bool flag_setpoints_read_success;
 
 } main_data;
 
@@ -267,8 +272,7 @@ const char* const parameters_names[]  =
   	BUTTON_UP,BUTTON_DOWN,BUTTON_ENTER,BUTTON_ESC,MAX_BUTTONS
   };
 
-   static uint16_t btn_state = 0;
-   static uint16_t btn_old_state = 0;
+
    uint8_t btnStatesArray[MAX_BUTTONS] = {0,};
    Button_Struct_t Button_A;
    Button_Struct_t Button_B;
@@ -344,6 +348,8 @@ void fnInputsUpdate(void);
 uint8_t fnDebounce(uint8_t sample);
 void fnOutputsUpdate(struct MyData *data);
 void fnDisplayLightControl(struct MyData *data, struct SetpointsStruct *setpoints);
+uint16_t fnCrc16Calc(uint8_t *Data, uint8_t count);
+void fnCheckSavedSetpoints(void);
 
 /* USER CODE END PFP */
 
@@ -387,6 +393,33 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+
+//DEFAULT SETPOINTS
+  default_setpoints_data.pump_T_off = 5;
+  default_setpoints_data.pump_out_mode = AUTO_MODE;
+  default_setpoints_data.conv_U_off = 115;
+  default_setpoints_data.conv_T_U_off = 5;
+  default_setpoints_data.conv_U_on = 128;
+  default_setpoints_data.conv_T_IGN_off = 120;
+  default_setpoints_data.conv_out_mode = AUTO_MODE;
+  default_setpoints_data.fridge_U_off = 110;
+  default_setpoints_data.fridge_T_U_off = 3;
+  default_setpoints_data.fridge_U_on = 130;
+  default_setpoints_data.fridge_T_IGN_off = 60;
+  default_setpoints_data.fridge_Temp_on = 12;
+  default_setpoints_data.fridge_Temp_off = 7;
+  default_setpoints_data.fridge_out_mode = AUTO_MODE;
+  default_setpoints_data.water_sens_min = 0;
+  default_setpoints_data.water_sens_max = 190;
+  default_setpoints_data.water_tank_capacity = 100;
+  default_setpoints_data.shutdown_delay = 4;
+  default_setpoints_data.U_correction = 127;
+  default_setpoints_data.lcd_light_T_off = 5;
+  default_setpoints_data.logo = 0;
+  default_setpoints_data.inside_sensor_ID = 1;
+  default_setpoints_data.outside_sensor_ID = 2;
+  default_setpoints_data.inside_sensor_ID = 3;
+  default_setpoints_data.magic_key = MAGIC_KEY;
 
 //FLASH INIT
   	  W25qxx_Init();
@@ -438,7 +471,7 @@ int main(void)
 	Button_Add(&Button_D);
 
 //READ SETPOINTS FROM FLASH W25Q
-	W25qxx_ReadBytes(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR*FLASH_SECTOR_SIZE, MENU_SETPOINTS_NUM_ITEMS);
+	fnCheckSavedSetpoints();
 
 //ONE WIRE INIT
 	get_ROMid();
@@ -467,8 +500,8 @@ int main(void)
 
 
 	  fnMenuProcess();
-	  btn_state = fnGetPressKey();// опрос кнопок
-	  ProcessTimers(&sys_timer);
+	  main_data.btn_state = fnGetPressKey();// опрос кнопок
+	  ProcessTimers(&sys_timer); //
 
 	  fnInputsUpdate();
 	  fnPumpControl(&main_data, &SetpointsUnion.setpoints_data);
@@ -480,7 +513,7 @@ int main(void)
 	  fnOutputsUpdate(&main_data);
 
 	  if (GetGTimer(TIMER_TEMP_SENS_UPDATE) >= TEMP_SENS_UPDATE_PERIOD) {
-		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		//  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 		  get_Temperature();
 		  main_data.inside_temperature = Temp[0];
 		  main_data.outside_temperature = Temp[1];
@@ -1447,13 +1480,13 @@ void fnMenuProcess(void){
 
         fnPrintMainView();
 
-        if(btn_state == BTN_ENTER_LONG_PRESS){
+        if(main_data.btn_state == BTN_ENTER_LONG_PRESS){
           menu_mode = MENU_SETPOINTS;
           menu_current_item = 0;
          // tone(BUZZER,500,200);
         }
 
-        if(btn_state == BTN_ENTER){
+        if(main_data.btn_state == BTN_ENTER){
           menu_mode = MENU_PARAM_VIEW;
           menu_current_item = 0;
         }
@@ -1463,17 +1496,17 @@ void fnMenuProcess(void){
 
         fnPrintMenuParamView();
 
-        if ((btn_state == BTN_UP) || (btn_state == BTN_UP_LONG_PRESS)) {         // Если кнопку нажали или удерживают
+        if ((main_data.btn_state == BTN_UP) || (main_data.btn_state == BTN_UP_LONG_PRESS)) {         // Если кнопку нажали или удерживают
           menu_current_item = constrain(menu_current_item - display_num_lines , 0, MENU_PARAM_VIEW_NUM_ITEMS - 1); // Двигаем указатель в пределах дисплея
          // if(SetpointsUnion.setpoints_data.debug_key== DEBUG_KEY_1)Serial.println(menu_current_item);
         }
 
-        if ((btn_state == BTN_DOWN) || (btn_state == BTN_DOWN_LONG_PRESS)) {
+        if ((main_data.btn_state == BTN_DOWN) || (main_data.btn_state == BTN_DOWN_LONG_PRESS)) {
           menu_current_item = constrain(menu_current_item + display_num_lines, 0, MENU_PARAM_VIEW_NUM_ITEMS - 1);
          // if(SetpointsUnion.setpoints_data.debug_key== DEBUG_KEY_1)Serial.println(menu_current_item);
         }
 
-        if(btn_state == BTN_ENTER){
+        if(main_data.btn_state == BTN_ENTER){
           menu_mode = MENU_LOGO_VIEW;
           menu_current_item = 0;
         }
@@ -1484,19 +1517,19 @@ void fnMenuProcess(void){
 
         printMenuSetpoints();
 
-        if ((btn_state == BTN_DOWN) || (btn_state == BTN_DOWN_LONG_PRESS)) {         // Если кнопку нажали или удерживают
+        if ((main_data.btn_state == BTN_DOWN) || (main_data.btn_state == BTN_DOWN_LONG_PRESS)) {         // Если кнопку нажали или удерживают
           menu_current_item = constrain(menu_current_item + 1, 0, MENU_SETPOINTS_NUM_ITEMS - 1); // Двигаем указатель в пределах дисплея
           //Serial.println(menu_current_item);
         }
 
-        if ((btn_state == BTN_UP) || (btn_state == BTN_UP_LONG_PRESS)) {
+        if ((main_data.btn_state == BTN_UP) || (main_data.btn_state == BTN_UP_LONG_PRESS)) {
           menu_current_item = constrain(menu_current_item - 1, 0, MENU_SETPOINTS_NUM_ITEMS - 1);
           //if(SetpointsUnion.setpoints_data.debug_key== DEBUG_KEY_1)Serial.println(menu_current_item);
         }
 
-        if(btn_state == BTN_ENTER)menu_mode = MENU_SETPOINTS_EDIT_MODE;
+        if(main_data.btn_state == BTN_ENTER)menu_mode = MENU_SETPOINTS_EDIT_MODE;
 
-        if(btn_state == BTN_ESC){
+        if(main_data.btn_state == BTN_ESC){
           menu_mode = MENU_MAIN_VIEW;
           menu_current_item = 0;
           //tone(BUZZER,500,200);
@@ -1508,18 +1541,19 @@ void fnMenuProcess(void){
 
         printMenuSetpoints();
 
-        if ((btn_state == BTN_UP) || (btn_state == BTN_UP_LONG_PRESS)){
+        if ((main_data.btn_state == BTN_UP) || (main_data.btn_state == BTN_UP_LONG_PRESS)){
           SetpointsUnion.SetpointsArray[menu_current_item] = constrain(SetpointsUnion.SetpointsArray[menu_current_item]+1,param_range_min[menu_current_item],param_range_max[menu_current_item]);
          // Serial.println(SetpointsUnion.SetpointsArray[menu_current_item]);
         }
 
-        if ((btn_state == BTN_DOWN) || (btn_state == BTN_DOWN_LONG_PRESS)){
+        if ((main_data.btn_state == BTN_DOWN) || (main_data.btn_state == BTN_DOWN_LONG_PRESS)){
           SetpointsUnion.SetpointsArray[menu_current_item] = constrain(SetpointsUnion.SetpointsArray[menu_current_item]-1,param_range_min[menu_current_item],param_range_max[menu_current_item]);
          // if(SetpointsUnion.setpoints_data.debug_key== DEBUG_KEY_1)Serial.println(SetpointsUnion.SetpointsArray[menu_current_item]);
         }
 
-        if(btn_state == BTN_ENTER){
+        if(main_data.btn_state == BTN_ENTER){
           //выход с сохранением в flash
+        	SetpointsUnion.setpoints_data.crc = fnCrc16Calc((uint8_t*)&SetpointsUnion.SetpointsArray, sizeof(SetpointsUnion.SetpointsArray) - 2);
         	W25qxx_EraseSector(SETPOINTS_FLASH_SECTOR);
         	bool flag_empty = false;
         	flag_empty = W25qxx_IsEmptySector(SETPOINTS_FLASH_SECTOR, 0,MENU_SETPOINTS_NUM_ITEMS);
@@ -1530,9 +1564,10 @@ void fnMenuProcess(void){
         	}
 
           menu_mode = MENU_SETPOINTS;
+          //menu_mode = MESSAGE_SAVED;
         }
 
-        if(btn_state == BTN_ESC){
+        if(main_data.btn_state == BTN_ESC){
 		  //выход без сохранения
 		  menu_mode = MENU_SETPOINTS;
 		}
@@ -1572,7 +1607,7 @@ void fnMenuProcess(void){
         }
 
 
-        if(btn_state == BTN_ENTER){
+        if(main_data.btn_state == BTN_ENTER){
           menu_mode = MENU_MAIN_VIEW;
           menu_current_item = 0;
         }
@@ -1592,9 +1627,10 @@ void fnMenuProcess(void){
 //
 static uint16_t fnGetPressKey(void){
 
- 	static uint16_t key_pressed;
+ 	static uint8_t key_pressed;
 
- 	 //считываем состояние кнопок и заносим в массив
+ 	//считываем состояние кнопок и заносим в массив количество нажатий, 1-один клик, 255-удержание
+ 	//(несколько нажатий пока не востребовано)
  		  btnStatesArray[BUTTON_UP] = Button_Get_Clicked_Count(&Button_A);  //
  		  btnStatesArray[BUTTON_DOWN] = Button_Get_Clicked_Count(&Button_B);
  		  btnStatesArray[BUTTON_ENTER] = Button_Get_Clicked_Count(&Button_C);
@@ -2018,7 +2054,7 @@ void fnDisplayLightControl(struct MyData *data, struct SetpointsStruct *setpoint
 	static bool door_old_state = false;
 	static bool state = false;
 
-	if (data->door_switch_state && (door_old_state != data->door_switch_state)){
+	if ((data->door_switch_state && (door_old_state != data->door_switch_state)) || data->btn_state != 0){
 		StartGTimer(TIMER_LCD_LIGHT_OFF);
 		state = true;
 	}
@@ -2033,6 +2069,136 @@ void fnDisplayLightControl(struct MyData *data, struct SetpointsStruct *setpoint
 	data->lcd_light_output_state = state;
 }
 //********************************************************************************
+
+//CRC16
+uint16_t fnCrc16Calc(uint8_t *Data, uint8_t count) {
+
+	uint16_t crc = 0xffff;
+	uint8_t i = 0;
+	uint8_t j = 0;
+
+	for (j = 0; j < count; j++)
+	{
+		crc = crc ^ (uint16_t) *Data++ << 8;
+		i = 8;
+
+		do {
+			if (crc & 0x8000)
+				crc = crc << 1 ^ 0x1021;
+			else
+				crc = crc << 1;
+		} while (--i);
+	}
+
+	return crc;
+}
+//*************************************************************************
+
+//check saved setpoints (flash)
+/*
+ * Читаем уставки из флэшки и проверяем контрольную сумму и волшебное слово
+ * Если всё корректно то выходим, если нет записываем уставки по умолчаню в флэшку и инкриментируем счетчик записей
+ * Затем снова проверяем контрольную сумму и волшебное слово.
+ * Если опять не корректно,записываем уставки по умолчаню в флэшку и инкриментируем счетчик записей
+ * Снова проверяем контролюную сумму и волшебное слово
+ * Если опять не корректно и счётчик записей больше 2 то копируем уставки по умолчанию прямо в структуру и сообщаем об ошибке флэш
+ */
+void fnCheckSavedSetpoints(void){
+	uint8_t write_cnt = 0;
+	enum Steps{
+	  	CHECK_CRC_MAGIC_KEY,
+		CHECK_WRITE_CNT,
+		WRITE_DEFAULT_TO_FLASH,
+		WRITE_DEFAULT_TO_SETPOINTS,
+		MESSAGE_READ_SUCCESS,
+		MESSAGE_REWRITE_DEFAULT,
+		MESSAGE_FLASH_FAULT,
+		EXIT
+	  };
+	enum Steps step = CHECK_CRC_MAGIC_KEY;
+
+	while(step != EXIT){
+		switch (step) {
+			case CHECK_CRC_MAGIC_KEY:
+				W25qxx_ReadBytes(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR*FLASH_SECTOR_SIZE, sizeof(SetpointsUnion.SetpointsArray));
+				uint16_t crc = !fnCrc16Calc(SetpointsUnion.SetpointsArray, sizeof(SetpointsUnion.SetpointsArray));
+
+				if((crc == 0) && (SetpointsUnion.setpoints_data.magic_key == MAGIC_KEY)){
+					step = MESSAGE_READ_SUCCESS;
+				}
+				else {
+					step = CHECK_WRITE_CNT;
+				}
+				break;
+
+			case  CHECK_WRITE_CNT:
+				if(write_cnt > 2){
+					step = WRITE_DEFAULT_TO_SETPOINTS;
+				}
+				else {
+					step = WRITE_DEFAULT_TO_FLASH;
+					write_cnt++;
+				}
+				break;
+
+			case WRITE_DEFAULT_TO_FLASH:
+				default_setpoints_data.crc = fnCrc16Calc((uint8_t*)&default_setpoints_data, sizeof(default_setpoints_data) - 2);
+				W25qxx_EraseSector(SETPOINTS_FLASH_SECTOR);
+				bool flag_empty = false;
+				flag_empty = W25qxx_IsEmptySector(SETPOINTS_FLASH_SECTOR, 0,sizeof(SetpointsUnion.SetpointsArray));
+				if(flag_empty){
+					W25qxx_WriteSector((uint8_t*)&default_setpoints_data, SETPOINTS_FLASH_SECTOR, 0, sizeof(default_setpoints_data));
+					flag_empty = false;
+					//tone(BUZZER,500,200);
+				}
+				HAL_Delay(50);
+				step = MESSAGE_REWRITE_DEFAULT;
+				break;
+
+			case WRITE_DEFAULT_TO_SETPOINTS:
+				SetpointsUnion.setpoints_data = default_setpoints_data;
+				step = MESSAGE_FLASH_FAULT;
+				break;
+
+			case MESSAGE_READ_SUCCESS:
+				step = EXIT;
+				main_data.flag_setpoints_read_success = true;
+				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, RESET);
+				HAL_Delay(200);
+				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, SET);
+				break;
+
+			case MESSAGE_REWRITE_DEFAULT:
+				step = CHECK_CRC_MAGIC_KEY;
+				for(uint8_t i = 0;i<4;i++){
+					HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, RESET);
+					HAL_Delay(200);
+					HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, SET);
+					HAL_Delay(200);
+				}
+				break;
+
+			case MESSAGE_FLASH_FAULT:
+				step = EXIT;
+				main_data.flag_setpoints_read_success = false;
+				for(uint8_t i = 0;i<10;i++){
+					HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, RESET);
+					HAL_Delay(200);
+					HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, SET);
+					HAL_Delay(200);
+				}
+				break;
+
+			case EXIT :
+
+				break;
+
+			default:
+				break;
+		}
+	}
+}
+
 /* USER CODE END 4 */
 
 /**

@@ -241,6 +241,8 @@ void Error_Handler(void);
 #define ERROR_RES_SENS  		0b00000100
 #define ERROR_FLASH_READ  		0b00001000
 
+#define MAGIC_KEY				0x1234
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
