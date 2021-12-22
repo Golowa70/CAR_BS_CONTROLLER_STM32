@@ -107,6 +107,7 @@ void Error_Handler(void);
 
 #define LED_BLINK_DELAY 			500
 #define PRX_SENSOR_FEEDBACK_DELAY	10
+#define MESSAGE_VIEW_TIME			1000
 
 //MODES
 #define OFF_MODE               	0

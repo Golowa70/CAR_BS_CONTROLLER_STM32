@@ -255,7 +255,7 @@ const char* const parameters_names[]  =
   uint8_t menu_current_page = 0;
 
   enum Menus{
-	  MENU_MAIN_VIEW,MENU_PARAM_VIEW,MENU_SETPOINTS,MENU_SETPOINTS_EDIT_MODE,MENU_LOGO_VIEW,MENUS_MAX
+	  MENU_MAIN_VIEW,MENU_PARAM_VIEW,MENU_SETPOINTS,MENU_SETPOINTS_EDIT_MODE,MENU_LOGO_VIEW, MENU_MESSAGE_VIEW, MENUS_MAX
   };
 
   enum Menus menu_mode = MENU_MAIN_VIEW;
@@ -1464,6 +1464,9 @@ void fnPrintMainView(void){
 
 //Menu -----------------
 void fnMenuProcess(void){
+	
+	enum Messages{NO_MESSAGES,VALUE_SAVED, VALUE_NOT_SAVED};
+	static enum Messages message = NO_MESSAGES;
 
     //определение текущей страницы меню
     if(menu_current_item < display_num_lines) menu_current_page = 0;
@@ -1558,13 +1561,22 @@ void fnMenuProcess(void){
         	bool flag_empty = false;
         	flag_empty = W25qxx_IsEmptySector(SETPOINTS_FLASH_SECTOR, 0,MENU_SETPOINTS_NUM_ITEMS);
         	if(flag_empty){
-        		W25qxx_WriteSector(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR, 0, MENU_SETPOINTS_NUM_ITEMS);
+        		W25qxx_WriteSector(SetpointsUnion.SetpointsArray, SETPOINTS_FLASH_SECTOR, 0, sizeof(SetpointsUnion.SetpointsArray));
         		flag_empty = false;
-        		//tone(BUZZER,500,200);
         	}
 
-          menu_mode = MENU_SETPOINTS;
-          //menu_mode = MESSAGE_SAVED;
+			uint8_t saved_item_value = 0;
+			W25qxx_ReadByte(&saved_item_value, (FLASH_SECTOR_SIZE * SETPOINTS_FLASH_SECTOR) + menu_current_item);
+			if(saved_item_value == SetpointsUnion.SetpointsArray[menu_current_item]){
+				message = VALUE_SAVED;
+				StartGTimer(TIMER_MESSAGE_VIEW);
+			}
+			else{
+				message = VALUE_NOT_SAVED;
+				StartGTimer(TIMER_MESSAGE_VIEW);
+			}
+          
+          menu_mode = MENU_MESSAGE_VIEW;
         }
 
         if(main_data.btn_state == BTN_ESC){
@@ -1574,37 +1586,36 @@ void fnMenuProcess(void){
 
         break;
 
-      case MENU_LOGO_VIEW:
+	case MENU_LOGO_VIEW:
 
-        switch (SetpointsUnion.setpoints_data.logo)
-        {
-        case 0:
-          u8g2_ClearBuffer(&u8g2);
-          W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_FK, 1024);
-          u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
-          u8g2_SendBuffer(&u8g2);
-          break;
+		switch (SetpointsUnion.setpoints_data.logo) {
+		case 0:
+			u8g2_ClearBuffer(&u8g2);
+			W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_FK, 1024);
+			u8g2_DrawXBM(&u8g2, 33, 5, 64, 55, imageBuff);
+			u8g2_SendBuffer(&u8g2);
+			break;
 
-        case 1:
-          u8g2_ClearBuffer(&u8g2);
-          W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_2, 1024);
-          u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
-          u8g2_SendBuffer(&u8g2);
-          break;
+		case 1:
+			u8g2_ClearBuffer(&u8g2);
+			W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_2, 1024);
+			u8g2_DrawXBM(&u8g2, 33, 5, 64, 55, imageBuff);
+			u8g2_SendBuffer(&u8g2);
+			break;
 
-        case 2:
-          u8g2_ClearBuffer(&u8g2);
-          W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_3, 1024);
-          u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
-          u8g2_SendBuffer(&u8g2);
-          break;
+		case 2:
+			u8g2_ClearBuffer(&u8g2);
+			W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_3, 1024);
+			u8g2_DrawXBM(&u8g2, 33, 5, 64, 55, imageBuff);
+			u8g2_SendBuffer(&u8g2);
+			break;
 
 		default:
 			u8g2_ClearBuffer(&u8g2);
 			//пусто
 			u8g2_SendBuffer(&u8g2);
 			break;
-        }
+		}
 
 
         if(main_data.btn_state == BTN_ENTER){
@@ -1613,10 +1624,49 @@ void fnMenuProcess(void){
         }
 
         break;
+		
+	  case MENU_MESSAGE_VIEW:
+
+		switch (message) {
+
+		case VALUE_SAVED:
+			u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
+			u8g2_ClearBuffer(&u8g2);
+			u8g2_DrawStr(&u8g2, 40, 30, "SAVED!");
+			u8g2_SendBuffer(&u8g2);
+			//buzzer
+			break;
+
+		case VALUE_NOT_SAVED:
+			u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
+			u8g2_ClearBuffer(&u8g2);
+			u8g2_DrawStr(&u8g2, 40, 30, "NOT SAVED!");
+			u8g2_SendBuffer(&u8g2);
+			//buzzer
+			break;
+
+		case NO_MESSAGES:
+
+			break;
+
+		default:
+			break;
+		}
+
+
+		if(GetGTimer(TIMER_MESSAGE_VIEW) > MESSAGE_VIEW_TIME){
+			StopGTimer(TIMER_MESSAGE_VIEW);
+			message = NO_MESSAGES;
+			menu_mode = MENU_SETPOINTS;
+		}
+
+
+
+	  break;
+		
 
       default:
-
-      break;
+    	  break;
 
     }
   //end menu
