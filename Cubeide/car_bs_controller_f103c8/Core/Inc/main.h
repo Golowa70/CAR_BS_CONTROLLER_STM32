@@ -59,8 +59,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define W25Q_CS_Pin GPIO_PIN_13
 #define W25Q_CS_GPIO_Port GPIOC
-#define LCD_LED_Pin GPIO_PIN_14
-#define LCD_LED_GPIO_Port GPIOC
 #define RES_SENS_Pin GPIO_PIN_0
 #define RES_SENS_GPIO_Port GPIOA
 #define LED_Pin GPIO_PIN_1
@@ -91,6 +89,8 @@ void Error_Handler(void);
 #define PRX_SENS_INPUT_GPIO_Port GPIOB
 #define IGN_INPUT_Pin GPIO_PIN_8
 #define IGN_INPUT_GPIO_Port GPIOA
+#define LCD_LED_Pin GPIO_PIN_12
+#define LCD_LED_GPIO_Port GPIOA
 #define BUTTON_DOWN_Pin GPIO_PIN_15
 #define BUTTON_DOWN_GPIO_Port GPIOA
 #define BUTTON_ENTER_Pin GPIO_PIN_3
@@ -105,9 +105,8 @@ void Error_Handler(void);
 #define FRIDGE_OUTPUT_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
-#define LED_BLINK_DELAY 			500
 #define PRX_SENSOR_FEEDBACK_DELAY	10
-#define MESSAGE_VIEW_TIME			1000
+#define MESSAGE_VIEW_TIME			2000
 
 //MODES
 #define OFF_MODE               	0
@@ -122,7 +121,7 @@ void Error_Handler(void);
 #define LCD_LINE_SPACER                 4  // промежуток между строками
 #define LCD_FONT_HIGHT                  8   // высота шрифта
 #define ITEM_MAX_CHARS                  17  // макс. количество символов в названии пункта
-#define BLINK_INTERVAL					500
+#define BLINK_INTERVAL					1000
 
 //BUTTONS
 #define BTN_NOTHING  			0b00000000
@@ -215,14 +214,14 @@ void Error_Handler(void);
 #define	LOGO_MIN					0
 #define	LOGO_MAX					2
 
-#define	INSIDE_SENS_ID_MIN			0
-#define	INSIDE_SENS_ID_MAX			2
+#define	INSIDE_SENS_ID_MIN			1
+#define	INSIDE_SENS_ID_MAX			3
 
-#define	OUTSIDE_SENS_ID_MIN			0
-#define	OUTSIDE_SENS_ID_MAX			2
+#define	OUTSIDE_SENS_ID_MIN			1
+#define	OUTSIDE_SENS_ID_MAX			3
 
-#define	FRIDGE_SENS_ID_MIN			0
-#define	FRIDGE_SENS_ID_MAX			2
+#define	FRIDGE_SENS_ID_MIN			1
+#define	FRIDGE_SENS_ID_MAX			3
 
 //ADC
 #define ADC_CHANELS					3
@@ -234,6 +233,8 @@ void Error_Handler(void);
 #define EMA_FILTER_K				0.1  		//коэффициент сглаживания от 0 до 1 чем меньше, тем плавнее фильтр
 
 #define TEMP_SENS_UPDATE_PERIOD		1000		//ms
+#define BUZZER_SHORT_BEEP 			100
+#define BUZZER_LONG_BEEP			1000
 
 //ERRORS
 #define ERROR_NOTHING  			0b00000000

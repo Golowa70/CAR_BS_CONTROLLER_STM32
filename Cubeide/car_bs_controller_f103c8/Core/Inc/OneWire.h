@@ -47,7 +47,8 @@ typedef struct {
   uint8_t crc;
 } RomCode; //
 
-RomCode idsOnFlash; // структура для хранения адресов датчиков в флэш памяти
+//RomCode idsOnFlash; // структура для хранения адресов датчиков в флэш памяти
+RomCode tempSensIdsOnFlash[MAXDEVICES_ON_THE_BUS];
 
 typedef struct {
   uint8_t crc;
@@ -113,6 +114,8 @@ uint16_t owEchoRead(void);
 void owReadHandler(void);
 
 int get_ROMid (void);
+
+int get_ROMidFromFlash (void);
 
 void get_Temperature (void);
 

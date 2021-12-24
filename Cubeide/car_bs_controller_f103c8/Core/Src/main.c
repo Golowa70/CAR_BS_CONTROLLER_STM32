@@ -107,8 +107,8 @@ struct MyData
   float sensors_supply_voltage;   // напряжение питания датчиков 5в
   uint16_t res_sensor_resistance;   // сопротивление резистивного датчика
   uint8_t water_level_liter;      	// уровень воды в литрах
-  uint8_t error_code;
-  uint8_t btn_state;
+  uint8_t error_code;				//код ошибки
+  uint8_t btn_state;				//состояние кнопок
 
   bool door_switch_state;         	// состояние концевика задней двери
   bool proximity_sensor_state;    	// состояние датчика приближения
@@ -118,13 +118,18 @@ struct MyData
   bool pump_output_state;         	//состояние выхода насоса
   bool sensors_supply_output_state; // состояние выхода управления питанием сенсоров 5в
   bool main_supply_output_state;  	// состояние выхода управления общим питанием 7.5в
-  bool lcd_light_output_state;
-  bool flag_system_started;
-  bool flag_setpoints_read_success;
+  bool lcd_light_output_state;		// состояние выхода управления подсветкой дисплея
+  bool flag_system_started;			//
+  bool flag_setpoints_read_success;	// флаг удачной загрузки параметров из флэш на старте
+  bool flag_blink;					// флаг для мигания чего либо на экране
 
 } main_data;
 
 //****** end main data **************************************************************
+
+//
+extern RomCode tempSensIdsOnFlash[MAXDEVICES_ON_THE_BUS];
+extern uint8_t devices;
 
 //********** MENU VARIABLES *********************************************************
   /* массивы строк с именами пунктов меню просмотра параметров */
@@ -286,11 +291,10 @@ const char* const parameters_names[]  =
 
   //********* OTHER VARIABLES *********************************************************
 	uint8_t main_process_step = 0;
-	uint32_t  time_b = 0;
-	bool flag_blink = false; // флаг для мигания чего либо на экране
 	uint8_t imageBuff[IMAGE_BUFFER_SIZE] = {0,};
 	bool flag_mb_connected = 0;
 	uint32_t sys_timer = 0;
+	uint16_t beep_time = 0;
 
 /* USER CODE END PV */
 
@@ -349,7 +353,8 @@ uint8_t fnDebounce(uint8_t sample);
 void fnOutputsUpdate(struct MyData *data);
 void fnDisplayLightControl(struct MyData *data, struct SetpointsStruct *setpoints);
 uint16_t fnCrc16Calc(uint8_t *Data, uint8_t count);
-void fnCheckSavedSetpoints(void);
+void fnReadSavedSetpoints(void);
+void fnOneWireScanner(void);
 
 /* USER CODE END PFP */
 
@@ -435,14 +440,13 @@ int main(void)
 //DISPLAY INIT
 	u8g2_Setup_st7565_nhd_c12864_f(&u8g2, U8G2_R2, u8x8_byte_4wire_hw_spi,
 			u8g2_gpio_and_delay_stm32);
-	u8g2_InitDisplay(&u8g2); 	 // send init sequence to the display, display is in sleep mode after this
-	u8g2_SetPowerSave(&u8g2, 0); // wake up display
+	u8g2_InitDisplay(&u8g2); 	 // отправить последовательность инициализации на дисплей, после этого дисплей в режиме sleep
+	u8g2_SetPowerSave(&u8g2, 0); // разбудить дисплей
 	u8g2_SetContrast(&u8g2, 250);
 	u8g2_ClearDisplay(&u8g2);
-	//u8g2_SetFont(&u8g2, u8g2_font_courB18_tr);
 	u8g2_ClearBuffer(&u8g2);
 	W25qxx_ReadBytes(imageBuff, IMAGE_LOGO_3, 1024);
-	u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);
+	u8g2_DrawXBM(&u8g2,33,5, 64, 55, imageBuff);// рисуем картинку при старте
 	u8g2_SendBuffer(&u8g2);
 	HAL_Delay(1000);
 	display_height = u8g2_GetDisplayHeight(&u8g2);
@@ -452,35 +456,42 @@ int main(void)
 //BUTTONS INIT
 	Button_A.Button_Init = NULL; // инициализация кнопки
 	Button_A.Button_Read = Button_A_Read;
-	Button_A.Callback = NULL; //    NULL; /** without callback */
+	Button_A.Callback = NULL; //    NULL; /** без колбэка */
 	Button_Add(&Button_A);
 
 	Button_B.Button_Init = NULL;
 	Button_B.Button_Read = Button_B_Read;
-	Button_B.Callback = NULL; //    NULL; /** without callback */
+	Button_B.Callback = NULL; //    NULL; /** без колбэка */
 	Button_Add(&Button_B);
 
 	Button_C.Button_Init = NULL;
 	Button_C.Button_Read = Button_C_Read;
-	Button_C.Callback = NULL; //    NULL; /** without callback */
+	Button_C.Callback = NULL; //    NULL; /** без колбэка */
 	Button_Add(&Button_C);
 
 	Button_D.Button_Init = NULL;
 	Button_D.Button_Read = Button_D_Read;
-	Button_D.Callback = NULL; //    NULL; /** without callback */
+	Button_D.Callback = NULL; //    NULL; /** без колбэка */
 	Button_Add(&Button_D);
-
-//READ SETPOINTS FROM FLASH W25Q
-	fnCheckSavedSetpoints();
-
-//ONE WIRE INIT
-	get_ROMid();
 
 //TIMERS INIT
 	InitGTimers();
-	//StartGTimer(TIMER_CONV_U_OFF);
 	StartGTimer(TIMER_PRX_SENS_FEEDBACK);
 	StartGTimer(TIMER_TEMP_SENS_UPDATE);
+	StartGTimer(TIMER_COMMON_BLINK);
+
+//READ SETPOINTS FROM FLASH W25Q
+	fnReadSavedSetpoints();
+
+//ONE WIRE INIT
+	//вход в сканнер по удержанию кнопок enter+esc при включении питания
+	if((HAL_GPIO_ReadPin(BUTTON_ESC_GPIO_Port, BUTTON_ESC_Pin) == false) && (HAL_GPIO_ReadPin(BUTTON_ENTER_GPIO_Port, BUTTON_ENTER_Pin) == false)){
+		fnOneWireScanner();
+	}
+
+	W25qxx_ReadSector((uint8_t*)tempSensIdsOnFlash, DS18B20_IDS_FLASH_SECTOR,0, sizeof(tempSensIdsOnFlash));
+	get_ROMidFromFlash();
+
 
 //GET TEMPERATURE
 	get_Temperature();
@@ -491,17 +502,24 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //blink
-	  if((HAL_GetTick() - time_b) > BLINK_INTERVAL) // интервал 500мс
-	   {
-		  flag_blink = !flag_blink;
-		  time_b = HAL_GetTick();
-	   }
 
+	  //BLINK
+	  if(GetGTimer(TIMER_COMMON_BLINK) > BLINK_INTERVAL){
+		  main_data.flag_blink = !main_data.flag_blink;
+		  StartGTimer(TIMER_COMMON_BLINK);
+	  }
 
+	  //BUZZER
+	  if(GetGTimer(TIMER_BUZZER_BEEP) > beep_time){
+		  HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, RESET);
+		  StopGTimer(TIMER_BUZZER_BEEP);
+	  }
+
+	  //PROCESSES
 	  fnMenuProcess();
 	  main_data.btn_state = fnGetPressKey();// опрос кнопок
 	  ProcessTimers(&sys_timer); //
+
 
 	  fnInputsUpdate();
 	  fnPumpControl(&main_data, &SetpointsUnion.setpoints_data);
@@ -512,12 +530,12 @@ int main(void)
 	  fnDisplayLightControl(&main_data, &SetpointsUnion.setpoints_data);
 	  fnOutputsUpdate(&main_data);
 
+	  //GET TEMPERATURE
 	  if (GetGTimer(TIMER_TEMP_SENS_UPDATE) >= TEMP_SENS_UPDATE_PERIOD) {
-		//  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 		  get_Temperature();
-		  main_data.inside_temperature = Temp[0];
-		  main_data.outside_temperature = Temp[1];
-		  main_data.fridge_temperature = Temp[2];
+		  main_data.inside_temperature = Temp[SetpointsUnion.setpoints_data.inside_sensor_ID-1];
+		  main_data.outside_temperature = Temp[SetpointsUnion.setpoints_data.outside_sensor_ID-1];
+		  main_data.fridge_temperature = Temp[SetpointsUnion.setpoints_data.fridge_sensor_ID-1];
 		  StartGTimer(TIMER_TEMP_SENS_UPDATE);
 	  }
 
@@ -831,27 +849,27 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, W25Q_CS_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(W25Q_CS_GPIO_Port, W25Q_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LCD_DC_Pin|SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin
                           |PUMP_OUTPUT_Pin|MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : W25Q_CS_Pin LCD_LED_Pin */
-  GPIO_InitStruct.Pin = W25Q_CS_Pin|LCD_LED_Pin;
+  /*Configure GPIO pin : W25Q_CS_Pin */
+  GPIO_InitStruct.Pin = W25Q_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(W25Q_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LED_Pin LCD_RESET_Pin LCD_CS_Pin */
-  GPIO_InitStruct.Pin = LED_Pin|LCD_RESET_Pin|LCD_CS_Pin;
+  /*Configure GPIO pins : LED_Pin LCD_RESET_Pin LCD_CS_Pin LCD_LED_Pin */
+  GPIO_InitStruct.Pin = LED_Pin|LCD_RESET_Pin|LCD_CS_Pin|LCD_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1034,7 +1052,7 @@ void fnPrintSelectionFrame(uint8_t item_pointer) {
   if(menu_mode == MENU_SETPOINTS_EDIT_MODE){
 
 
-    if(flag_blink)u8g2_DrawFrame(&u8g2,0, n*(LCD_FONT_HIGHT + LCD_LINE_SPACER)+2, display_width-2, (LCD_FONT_HIGHT + LCD_LINE_SPACER));
+    if(main_data.flag_blink)u8g2_DrawFrame(&u8g2,0, n*(LCD_FONT_HIGHT + LCD_LINE_SPACER)+2, display_width-2, (LCD_FONT_HIGHT + LCD_LINE_SPACER));
     else{
       u8g2_SetDrawColor(&u8g2,0);
       u8g2_DrawFrame(&u8g2,0, n*(LCD_FONT_HIGHT + LCD_LINE_SPACER)+2, display_width-2, (LCD_FONT_HIGHT + LCD_LINE_SPACER));
@@ -1634,7 +1652,10 @@ void fnMenuProcess(void){
 			u8g2_ClearBuffer(&u8g2);
 			u8g2_DrawStr(&u8g2, 40, 30, "SAVED!");
 			u8g2_SendBuffer(&u8g2);
-			//buzzer
+
+			HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, SET);
+			StartGTimer(TIMER_BUZZER_BEEP);
+			beep_time = BUZZER_SHORT_BEEP;
 			break;
 
 		case VALUE_NOT_SAVED:
@@ -1642,7 +1663,9 @@ void fnMenuProcess(void){
 			u8g2_ClearBuffer(&u8g2);
 			u8g2_DrawStr(&u8g2, 40, 30, "NOT SAVED!");
 			u8g2_SendBuffer(&u8g2);
-			//buzzer
+			HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, SET);
+			StartGTimer(TIMER_BUZZER_BEEP);
+			beep_time = BUZZER_LONG_BEEP;
 			break;
 
 		case NO_MESSAGES:
@@ -2153,7 +2176,7 @@ uint16_t fnCrc16Calc(uint8_t *Data, uint8_t count) {
  * Снова проверяем контролюную сумму и волшебное слово
  * Если опять не корректно и счётчик записей больше 2 то копируем уставки по умолчанию прямо в структуру и сообщаем об ошибке флэш
  */
-void fnCheckSavedSetpoints(void){
+void fnReadSavedSetpoints(void){
 	uint8_t write_cnt = 0;
 	enum Steps{
 	  	CHECK_CRC_MAGIC_KEY,
@@ -2199,7 +2222,6 @@ void fnCheckSavedSetpoints(void){
 				if(flag_empty){
 					W25qxx_WriteSector((uint8_t*)&default_setpoints_data, SETPOINTS_FLASH_SECTOR, 0, sizeof(default_setpoints_data));
 					flag_empty = false;
-					//tone(BUZZER,500,200);
 				}
 				HAL_Delay(50);
 				step = MESSAGE_REWRITE_DEFAULT;
@@ -2214,8 +2236,10 @@ void fnCheckSavedSetpoints(void){
 				step = EXIT;
 				main_data.flag_setpoints_read_success = true;
 				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, RESET);
+				HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, SET);
 				HAL_Delay(200);
 				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, SET);
+				HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, RESET);
 				break;
 
 			case MESSAGE_REWRITE_DEFAULT:
@@ -2247,6 +2271,154 @@ void fnCheckSavedSetpoints(void){
 				break;
 		}
 	}
+}
+//******************************************************************************************************************
+
+void fnOneWireScanner(void){
+
+	bool flag_scanned = false;
+	uint8_t num_founded_sensors = 0;
+	char buffer[32] = { 0, };
+	enum fsm_state {
+		start,
+		scanner,
+		founded_no_more_three,
+		not_founded,
+		founded_more_three,
+		save,
+		exit
+	};
+	enum fsm_state current_state = start;
+
+
+  //turn on sensors supply
+  //delay 200ms
+
+  while(!flag_scanned){
+
+    switch (current_state)
+    {
+    case start:
+
+		u8g2_ClearBuffer(&u8g2);					//
+		u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);	//
+		u8g2_DrawStr(&u8g2, 20,30, "OneWire scanner");
+		u8g2_SetFont(&u8g2,u8g2_font_6x10_tr);
+		u8g2_DrawStr(&u8g2,7,50, "OK-> scan");
+		u8g2_DrawStr(&u8g2,7,60, "ESC-> exit");
+		u8g2_SendBuffer(&u8g2);
+
+		//Button_Get_Status(&Button_D) == Button_Pressed;
+      if(Button_Get_Status(&Button_C) == Button_Pressed)current_state = scanner;
+      if(Button_Get_Status(&Button_D) == Button_Pressed)current_state = exit;
+      break;
+
+    case scanner:
+
+      get_ROMid();
+      num_founded_sensors = devices;;
+
+
+      if(num_founded_sensors == 0)current_state = not_founded;
+      else if(num_founded_sensors <= 3)current_state = founded_no_more_three;
+      else if(num_founded_sensors > 3)current_state = founded_more_three;
+
+
+      break;
+
+    case founded_no_more_three:
+
+	  u8g2_ClearBuffer(&u8g2);
+      snprintf(buffer,sizeof(buffer),"Founded %d sensors", num_founded_sensors);
+      u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
+      u8g2_DrawStr(&u8g2,20,20, buffer);
+      u8g2_SetFont(&u8g2, u8g2_font_6x10_tr);
+      u8g2_DrawStr(&u8g2,7,40, "UP-> scan");
+      u8g2_DrawStr(&u8g2,7,50, "OK-> continue");
+      u8g2_DrawStr(&u8g2,7,60, "ESC-> exit");
+      u8g2_SendBuffer(&u8g2);
+
+      if(Button_Get_Status(&Button_C) == Button_Pressed)current_state = save;
+      if(Button_Get_Status(&Button_D) == Button_Pressed)current_state = exit;
+      if(Button_Get_Status(&Button_A) == Button_Pressed)current_state = scanner;
+      break;
+
+    case not_founded:
+
+	  u8g2_ClearBuffer(&u8g2);
+	  u8g2_SetFont(&u8g2,u8g2_font_ncenB08_tr);
+	  u8g2_DrawStr(&u8g2,15,20, "No sensors founded");
+	  u8g2_SetFont(&u8g2,u8g2_font_6x10_tr);
+      u8g2_DrawStr(&u8g2,7,50, "UP-> scan");
+      u8g2_DrawStr(&u8g2,7,60, "ESC-> exit");
+      u8g2_SendBuffer(&u8g2);
+      if(Button_Get_Status(&Button_D) == Button_Pressed)current_state = exit;
+      if(Button_Get_Status(&Button_A) == Button_Pressed)current_state = scanner;
+      break;
+
+    case founded_more_three:
+
+		u8g2_ClearBuffer(&u8g2);
+		u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
+		u8g2_DrawStr(&u8g2,30,40, "founded > 3");
+        u8g2_SetFont(&u8g2, u8g2_font_6x10_tr);
+        u8g2_DrawStr(&u8g2,7,50, "UP-> scan");
+        u8g2_DrawStr(&u8g2,7,60, "ESC-> exit");
+        u8g2_SendBuffer(&u8g2);
+        if(Button_Get_Status(&Button_D) == Button_Pressed)current_state = exit;
+        if(Button_Get_Status(&Button_A) == Button_Pressed)current_state = scanner;
+        break;
+
+    case save:
+
+      u8g2_ClearBuffer(&u8g2);
+
+      u8g2_DrawStr(&u8g2,2, 10, "ID1: ");
+      u8g2_DrawStr(&u8g2,2, 20, "ID2: ");
+      u8g2_DrawStr(&u8g2,2, 30, "ID3: ");
+
+
+      snprintf(buffer,sizeof(buffer),"%x%x%x%x%x%x%x%x", tempSensIdsOnFlash[0].family, tempSensIdsOnFlash[0].code[0],tempSensIdsOnFlash[0].code[1],tempSensIdsOnFlash[0].code[2],tempSensIdsOnFlash[0].code[3],tempSensIdsOnFlash[0].code[4],tempSensIdsOnFlash[0].code[5],tempSensIdsOnFlash[0].crc);
+      u8g2_DrawStr(&u8g2,30,10, buffer); //
+
+      snprintf(buffer,sizeof(buffer),"%x%x%x%x%x%x%x%x", tempSensIdsOnFlash[1].family, tempSensIdsOnFlash[1].code[0],tempSensIdsOnFlash[1].code[1],tempSensIdsOnFlash[1].code[2],tempSensIdsOnFlash[1].code[3],tempSensIdsOnFlash[1].code[4],tempSensIdsOnFlash[1].code[5],tempSensIdsOnFlash[1].crc);
+      u8g2_DrawStr(&u8g2,30,20, buffer);
+
+      snprintf(buffer,sizeof(buffer),"%x%x%x%x%x%x%x%x", tempSensIdsOnFlash[2].family, tempSensIdsOnFlash[2].code[0],tempSensIdsOnFlash[2].code[1],tempSensIdsOnFlash[2].code[2],tempSensIdsOnFlash[2].code[3],tempSensIdsOnFlash[2].code[4],tempSensIdsOnFlash[2].code[5],tempSensIdsOnFlash[2].crc);
+      u8g2_DrawStr(&u8g2,30,30, buffer);
+
+      u8g2_DrawStr(&u8g2,7,40, "UP-> scan");
+      u8g2_DrawStr(&u8g2,7,50, "OK-> save");
+      u8g2_DrawStr(&u8g2,7,60, "DOWN-> exit");
+      u8g2_SendBuffer(&u8g2);
+
+      if(Button_Get_Status(&Button_C) == Button_Pressed){
+
+    	W25qxx_EraseSector(DS18B20_IDS_FLASH_SECTOR);
+    	W25qxx_WriteSector((uint8_t*)tempSensIdsOnFlash, DS18B20_IDS_FLASH_SECTOR,0, sizeof(tempSensIdsOnFlash));
+
+    	u8g2_ClearBuffer(&u8g2);
+    	u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
+    	u8g2_DrawStr(&u8g2, 40,20, "SAVED!");
+    	u8g2_SendBuffer(&u8g2);
+        HAL_Delay(2000);
+        current_state = exit;
+      }
+
+      if(Button_Get_Status(&Button_D) == Button_Pressed)current_state = exit;
+      if(Button_Get_Status(&Button_A) == Button_Pressed)current_state = scanner;
+      break;
+
+    case exit:
+      flag_scanned = true;
+      //sens supply turn off
+      break;
+
+    default:
+      break;
+    }
+  }
+
 }
 
 /* USER CODE END 4 */

@@ -408,6 +408,7 @@ int get_ROMid (void){
 		}
 		i = 0;
 		for (; i < devices; i++) {//выводим в кон�?оль в�?е найденные ROM
+			tempSensIdsOnFlash[i] = ow.ids[i];
 			RomCode *r = &ow.ids[i];
 			uint8_t crc = owCRC8(r);
 			crcOK = (crc == r->crc)?"CRC OK":"CRC ERROR!";
@@ -430,7 +431,39 @@ int get_ROMid (void){
 	if (strcmp(crcOK,"CRC OK") == 0) return 0;
 	else return -1;
 }
+//********************************************************************************
+int get_ROMidFromFlash (void){
+	if (owResetCmd() != ONEWIRE_NOBODY) {    // is anybody on the bus?
+		devices = MAXDEVICES_ON_THE_BUS;
 
+		i = 0;
+		for (; i < devices; i++) {//выводим в кон�?оль в�?е найденные ROM
+			ow.ids[i] = tempSensIdsOnFlash[i];
+			RomCode *r = &ow.ids[i];
+
+			uint8_t crc = owCRC8(r);
+			crcOK = (crc == r->crc)?"CRC OK":"CRC ERROR!";
+			devInfo.device = i;
+
+			//sprintf(devInfo.info, "SN: %02X/%02X%02X%02X%02X%02X%02X/%02X", r->family, r->code[5], r->code[4], r->code[3],
+			//		r->code[2], r->code[1], r->code[0], r->crc);
+
+			if (crc != r->crc) {
+				devInfo.device = i;
+			//	sprintf (devInfo.info,"\n can't read cause CNC error");
+			}
+		}
+
+	}
+	pDelay = 1000000;
+	for (i = 0; i < pDelay * 1; i++)
+		__asm__("nop");
+
+	if (strcmp(crcOK,"CRC OK") == 0) return 0;
+	else return -1;
+}
+
+//********************************************************************************
 void get_Temperature (void)
 {
 	i=0;

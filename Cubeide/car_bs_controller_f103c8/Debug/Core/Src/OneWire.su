@@ -24,4 +24,5 @@ OneWire.c:358:13:readTemperature	56	static
 OneWire.c:387:6:owCopyScratchpadCmd	16	static
 OneWire.c:392:6:owRecallE2Cmd	16	static
 OneWire.c:398:5:get_ROMid	16	static,ignoring_inline_asm
-OneWire.c:434:6:get_Temperature	16	static
+OneWire.c:435:5:get_ROMidFromFlash	16	static,ignoring_inline_asm
+OneWire.c:467:6:get_Temperature	16	static
