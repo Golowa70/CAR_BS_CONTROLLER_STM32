@@ -544,8 +544,9 @@ int main(void)
 	  		{
 	  			flag_adc_complet = false;
 	  			main_data.battery_voltage = fnEmaFilterBatVolt(adc_source_value[0]) * ADC_REFERENCE * ADC_BAT_VOLT_DIVIDER; 		// значение напряжения после фильтрации
-	  			main_data.sensors_supply_voltage = (fnEmaFilterSensVolt(adc_source_value[1]) * ADC_REFERENCE);
+	  			main_data.sensors_supply_voltage = (fnEmaFilterSensVolt(adc_source_value[1]) * ADC_REFERENCE * ADC_SENS_VOLT_PRIM_DIVIDER);
 	  			main_data.res_sensor_resistance = (fnEmaFilterResSens(adc_source_value[2]) / ADC_RES_SENS_DIVIDER);
+	  			// sensors_supply_voltage secondary
 
 	  			for (uint8_t i = 0; i < ADC_CHANELS; i++) {	// обнуляем массив со значениями от АЦП
 	  				adc_source_value[i] = 0;
@@ -632,7 +633,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.NbrOfConversion = 4;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -658,6 +659,14 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_8;
+  sConfig.Rank = ADC_REGULAR_RANK_4;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -855,11 +864,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin|LCD_DC_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LCD_DC_Pin|SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin
-                          |PUMP_OUTPUT_Pin|MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin|PUMP_OUTPUT_Pin
+                          |MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : W25Q_CS_Pin */
   GPIO_InitStruct.Pin = W25Q_CS_Pin;
@@ -868,17 +877,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(W25Q_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LED_Pin LCD_RESET_Pin LCD_CS_Pin LCD_LED_Pin */
-  GPIO_InitStruct.Pin = LED_Pin|LCD_RESET_Pin|LCD_CS_Pin|LCD_LED_Pin;
+  /*Configure GPIO pins : LED_Pin LCD_RESET_Pin LCD_CS_Pin LCD_DC_Pin
+                           LCD_LED_Pin */
+  GPIO_InitStruct.Pin = LED_Pin|LCD_RESET_Pin|LCD_CS_Pin|LCD_DC_Pin
+                          |LCD_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LCD_DC_Pin SENS_SUPPLY_Pin BUZZER_Pin CONV_OUTPUT_Pin
-                           PUMP_OUTPUT_Pin MAIN_SUPPLY_Pin FRIDGE_OUTPUT_Pin */
-  GPIO_InitStruct.Pin = LCD_DC_Pin|SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin
-                          |PUMP_OUTPUT_Pin|MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin;
+  /*Configure GPIO pins : SENS_SUPPLY_Pin BUZZER_Pin CONV_OUTPUT_Pin PUMP_OUTPUT_Pin
+                           MAIN_SUPPLY_Pin FRIDGE_OUTPUT_Pin */
+  GPIO_InitStruct.Pin = SENS_SUPPLY_Pin|BUZZER_Pin|CONV_OUTPUT_Pin|PUMP_OUTPUT_Pin
+                          |MAIN_SUPPLY_Pin|FRIDGE_OUTPUT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

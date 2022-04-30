@@ -103,15 +103,16 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     /**ADC1 GPIO Configuration
     PA0-WKUP     ------> ADC1_IN0
     PA2     ------> ADC1_IN2
+    PB0     ------> ADC1_IN8
     PB1     ------> ADC1_IN9
     */
     GPIO_InitStruct.Pin = RES_SENS_Pin|BAT_VOLT_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    GPIO_InitStruct.Pin = SENS_VOLT_Pin;
+    GPIO_InitStruct.Pin = SENS_VOLT_PRIM_Pin|SENS_VOLT_SEC_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-    HAL_GPIO_Init(SENS_VOLT_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* ADC1 DMA Init */
     /* ADC1 Init */
@@ -159,11 +160,12 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     /**ADC1 GPIO Configuration
     PA0-WKUP     ------> ADC1_IN0
     PA2     ------> ADC1_IN2
+    PB0     ------> ADC1_IN8
     PB1     ------> ADC1_IN9
     */
     HAL_GPIO_DeInit(GPIOA, RES_SENS_Pin|BAT_VOLT_Pin);
 
-    HAL_GPIO_DeInit(SENS_VOLT_GPIO_Port, SENS_VOLT_Pin);
+    HAL_GPIO_DeInit(GPIOB, SENS_VOLT_PRIM_Pin|SENS_VOLT_SEC_Pin);
 
     /* ADC1 DMA DeInit */
     HAL_DMA_DeInit(hadc->DMA_Handle);

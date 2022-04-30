@@ -69,10 +69,10 @@ void Error_Handler(void);
 #define LCD_RESET_GPIO_Port GPIOA
 #define LCD_CS_Pin GPIO_PIN_4
 #define LCD_CS_GPIO_Port GPIOA
-#define LCD_DC_Pin GPIO_PIN_0
-#define LCD_DC_GPIO_Port GPIOB
-#define SENS_VOLT_Pin GPIO_PIN_1
-#define SENS_VOLT_GPIO_Port GPIOB
+#define SENS_VOLT_PRIM_Pin GPIO_PIN_0
+#define SENS_VOLT_PRIM_GPIO_Port GPIOB
+#define SENS_VOLT_SEC_Pin GPIO_PIN_1
+#define SENS_VOLT_SEC_GPIO_Port GPIOB
 #define SENS_SUPPLY_Pin GPIO_PIN_2
 #define SENS_SUPPLY_GPIO_Port GPIOB
 #define ONE_WIRE_Pin GPIO_PIN_10
@@ -89,6 +89,8 @@ void Error_Handler(void);
 #define PRX_SENS_INPUT_GPIO_Port GPIOB
 #define IGN_INPUT_Pin GPIO_PIN_8
 #define IGN_INPUT_GPIO_Port GPIOA
+#define LCD_DC_Pin GPIO_PIN_11
+#define LCD_DC_GPIO_Port GPIOA
 #define LCD_LED_Pin GPIO_PIN_12
 #define LCD_LED_GPIO_Port GPIOA
 #define BUTTON_DOWN_Pin GPIO_PIN_15
@@ -224,10 +226,11 @@ void Error_Handler(void);
 #define	FRIDGE_SENS_ID_MAX			3
 
 //ADC
-#define ADC_CHANELS					3
+#define ADC_CHANELS					4
 #define ADC_REFERENCE			 	0.0008      //3.3/4095=0.0008; 18.46*0.0008=0.01487
 #define ADC_BAT_VOLT_DIVIDER		11			//R1=100k, R2=10k; Vin=36 Vout=3.27; 36/3.27=11;
-#define ADC_SENS_VOLT_DIVIDER		1//3.25		//R1=27k, R2=12k; Vin=10 Vout=3.08; 10/3.08=3.246;
+#define ADC_SENS_VOLT_PRIM_DIVIDER	1//3.25		//R1=27k, R2=12k; Vin=10 Vout=3.08; 10/3.08=3.246;
+#define ADC_SENS_VOLT_SEC_DIVIDER	3.25
 #define	ADC_RES_SENS_DIVIDER		100
 
 #define EMA_FILTER_K				0.1  		//коэффициент сглаживания от 0 до 1 чем меньше, тем плавнее фильтр
